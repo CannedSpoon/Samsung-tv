@@ -1,0 +1,96 @@
+/* Quiet Home - laid out on a 1920x1080 stage. Only opacity and transform
+   animate, so the TV's GPU does the work. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+body {
+  color: #fff;
+  font-family: "SamsungOne", "Samsung Sans", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  cursor: none;
+}
+
+#stage {
+  position: absolute; left: 0; top: 0;
+  width: 1920px; height: 1080px;
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+
+/* ---- photos ---- */
+.bg {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  background: #000 center / cover no-repeat;
+  opacity: 0;
+  transition: opacity var(--fade, 1800ms) ease;
+  will-change: opacity, transform;
+}
+.bg.shown { opacity: 1; animation: drift var(--drift, 60000ms) linear forwards; }
+.no-drift .bg.shown { animation: none; }
+@keyframes drift { from { transform: scale(1); } to { transform: scale(1.06); } }
+
+#scrim {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 26%),
+    linear-gradient(0deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 42%);
+}
+
+/* ---- clock ---- */
+#clock { position: absolute; left: 96px; top: 72px; text-shadow: 0 2px 18px rgba(0,0,0,.35); }
+#time { font-size: 112px; font-weight: 300; letter-spacing: -2px; line-height: 1; }
+#date { margin-top: 14px; font-size: 34px; font-weight: 400; opacity: .85; }
+
+#caption {
+  position: absolute; right: 96px; top: 84px;
+  font-size: 22px; opacity: .6; text-align: right; max-width: 640px;
+  text-shadow: 0 1px 8px rgba(0,0,0,.5);
+}
+
+/* ---- dock ---- */
+footer { position: absolute; left: 0; right: 0; bottom: 72px; text-align: center; }
+#label {
+  height: 44px; margin-bottom: 18px;
+  font-size: 30px; font-weight: 500; letter-spacing: .3px;
+  text-shadow: 0 2px 12px rgba(0,0,0,.5);
+}
+#dock {
+  display: inline-flex; gap: 24px;
+  padding: 26px 30px;
+  border-radius: 40px;
+  background: rgba(30, 30, 34, .55);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 20px 60px rgba(0,0,0,.35);
+}
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  #dock {
+    background: rgba(40, 40, 46, .32);
+    -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    backdrop-filter: blur(28px) saturate(1.4);
+  }
+}
+#hint { height: 34px; margin-top: 16px; font-size: 24px; opacity: .8; }
+
+.tile {
+  position: relative;
+  width: 220px; height: 124px;
+  border-radius: 22px;
+  background: var(--tile);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 8px 20px rgba(0,0,0,.3);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+}
+.tile::after {
+  /* a bar in the app's colour along the bottom edge */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px;
+  background: var(--accent);
+}
+.tile .name { font-size: 30px; font-weight: 700; letter-spacing: -.2px; padding: 0 14px; white-space: nowrap; }
+.tile.system { width: 172px; background: rgba(255,255,255,.14); }
+.tile.system::after { display: none; }
+.tile.system .name { font-size: 25px; font-weight: 500; }
+
+.tile.focus {
+  transform: translateY(-10px) scale(1.12);
+  box-shadow: inset 0 0 0 3px rgba(255,255,255,.9), 0 24px 44px rgba(0,0,0,.5);
+}
+.tile.opening { transform: translateY(-10px) scale(1.04); opacity: .8; }

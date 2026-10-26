@@ -1,0 +1,9 @@
+# Per-TV and private: backups, photos of your living room, the remote token, signing setup.
+backups/
+state/
+photos/
+dist/
+scripts/tizen-env.sh
+launcher/.buildResult/
+__pycache__/
+node_modules/
