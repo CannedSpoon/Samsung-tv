@@ -15,7 +15,8 @@ On Windows type `python` instead of `python3`.
 
 Other commands:
   python3 tv.py info            model, firmware, Developer Mode status
-  python3 tv.py apps            list installed apps and their IDs (for launcher/js/config.js)
+  python3 tv.py apps [WORD]     list installed apps and their IDs (for launcher/js/config.js)
+  python3 tv.py launch ID...    open an app by ID, to check which ID works on this TV
   python3 tv.py key HOME RIGHT*2   press remote keys (NAME*N repeats)
   python3 tv.py snap NAME       file a photo of the TV into the current backup (optional)
   python3 tv.py status          what the latest backup has recorded and changed
@@ -371,17 +372,42 @@ def cmd_apps(args):
     if not source:
         die("Couldn't list apps. Turn on Developer Mode and install sdb (docs/INSTALL.md); "
                  f"sdb said: {text}")
+    rows = []
     if source == "sdb":
-        # vd_applist prints blocks of key = value lines; keep the useful two.
-        title = None
+        # vd_applist prints a block of `key = value` lines per app; keep the id and title.
+        app = {}
         for line in text.splitlines():
-            line = line.strip()
-            if line.startswith("app_title"):
-                title = line.split("=", 1)[-1].strip()
-            elif line.startswith("app_tizen_id"):
-                say(f"{line.split('=', 1)[-1].strip():<40} {title}")
+            key, _, value = line.strip().partition("=")
+            key, value = key.strip(), value.strip()
+            if key in ("app_title", "app_tizen_id"):
+                if key in app:  # a new block started
+                    app = {}
+                app[key] = value
+                if len(app) == 2:
+                    rows.append(f"{app['app_tizen_id']:<40} {app['app_title']}")
+                    app = {}
     else:
-        say(text)
+        rows = text.splitlines()
+    word = (args.word or "").lower()
+    shown = [r for r in rows if word in r.lower()]
+    for row in shown:
+        say(row)
+    if word and not shown:
+        say(f"No app matching '{args.word}'.")
+
+
+def cmd_launch(args):
+    """Open an app by id from this computer: tells whether that id works on this TV."""
+    ip = the_tv()
+    for app_id in args.app_ids:
+        if tv.app_status(ip, app_id) is None:
+            say(f"{app_id}: the TV doesn't know this id (not installed, or a different id on this TV).")
+            continue
+        how = tv.launch_app(ip, app_id)
+        say(f"{app_id}: opened ({how})" if how else
+            f"{app_id}: installed, but didn't come on screen. Look at the TV; try the next id.")
+        if how and len(args.app_ids) > 1:
+            ask("Press Enter to try the next one (the TV stays on this app until then):")
 
 
 def cmd_camera(args):
@@ -720,7 +746,10 @@ def main():
     p = sub.add_parser("key")
     p.add_argument("keys", nargs="+")
     p.add_argument("--delay", type=float, default=0.6)
-    sub.add_parser("apps")
+    p = sub.add_parser("apps")
+    p.add_argument("word", nargs="?", help="only apps whose id or name contains this, e.g. plus")
+    p = sub.add_parser("launch")
+    p.add_argument("app_ids", nargs="+", metavar="APP_ID")
     p = sub.add_parser("snap")
     p.add_argument("name")
     p = sub.add_parser("backup")

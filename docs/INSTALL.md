@@ -131,4 +131,9 @@ Quiet Home > Delete**. `python tv.py restore` offers this too.
 - **An app is missing from the dock:** it isn't installed, or its ID differs;
   put the ID from `python tv.py apps` first in its `ids` in
   `launcher/js/config.js`, then `python tv.py install` again.
+- **A dock tile won't open its app:** the tile shows the app IDs it tried and
+  the TV's error. Find the app's IDs with `python tv.py apps plus` (any word
+  from its name), test them with `python tv.py launch <id> <id>`, put the one
+  that opens first in that app's `ids` in `launcher/js/config.js`, then
+  `python tv.py install` again.
 - **A Samsung OS upgrade removed it:** `python tv.py install` again.

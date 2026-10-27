@@ -125,6 +125,39 @@ def app_status(ip, app_id):
         return None
 
 
+def launch_app(ip, app_id, wait=8):
+    """Asks the TV to open an app the way Smart Hub does; returns how it opened, or None.
+
+    Tries the REST call first, then the remote-control channel (DEEP_LINK, then
+    NATIVE_LAUNCH), and checks the TV reports the app on screen after each.
+    """
+    def visible():
+        end = time.time() + wait
+        while time.time() < end:
+            status = app_status(ip, app_id)
+            if status and status.get("visible"):
+                return True
+            time.sleep(0.5)
+        return False
+
+    status, _ = rest(ip, "POST", f"/api/v2/applications/{app_id}")
+    if status == 200 and visible():
+        return "rest"
+    try:
+        remote = Remote(ip, wait_for_allow=10)
+    except (OSError, RuntimeError):
+        return None
+    try:
+        for action in ("DEEP_LINK", "NATIVE_LAUNCH"):
+            remote.ws.send_json({"method": "ms.channel.emit", "params": {
+                "event": "ed.apps.launch", "to": "host", "data": {"appId": app_id, "action_type": action}}})
+            if visible():
+                return action.lower()
+    finally:
+        remote.close()
+    return None
+
+
 # ---- remote-control WebSocket ---------------------------------------------------
 
 class WebSocket:

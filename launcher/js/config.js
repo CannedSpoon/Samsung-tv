@@ -27,7 +27,7 @@
       { label: 'Stremio', color: '#2a1a4a', accent: '#8a5cf6',
         ids: [], names: ['^stremio$', '\\bstremio\\b'] },
       { label: 'TV Plus', color: '#13202e', accent: '#00c2ff',
-        ids: ['com.samsung.tv.tvPlusDeeplinker', 'com.samsung.tv.tvplus'],
+        ids: ['com.samsung.tv.tvplus', 'com.samsung.tv.tvPlusDeeplinker'],
         names: ['^samsung tv plus$', '^tv plus$'] }
     ],
 

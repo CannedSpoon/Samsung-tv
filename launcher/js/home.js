@@ -90,7 +90,7 @@
     name.className = 'name';
     name.textContent = app.label;
     el.appendChild(name);
-    el.appId = app.id;
+    el.appIds = app.ids;
     el.label = app.label;
     return el;
   }
@@ -99,7 +99,7 @@
     dock.innerHTML = '';
     tiles = apps.map(function (a) { return tile(a); });
     var home = cfg.samsungHome;
-    tiles.push(tile({ label: home.label, id: home.id }, 'system'));
+    tiles.push(tile({ label: home.label, ids: [home.id] }, 'system'));
     tiles.forEach(function (el) { dock.appendChild(el); });
     if (!apps.length) $('hint').textContent = 'None of the dock apps were found. Edit js/config.js.';
     setFocus(Math.min(focus, tiles.length - 1));
@@ -117,9 +117,11 @@
     if (busy || !el) return;
     busy = true;
     el.classList.add('opening');
-    platform.launch(el.appId).then(null, function () {
-      $('hint').textContent = 'Couldn’t open ' + el.label + '.';
-      setTimeout(function () { $('hint').textContent = ''; }, 4000);
+    platform.launch(el.appIds).then(null, function (e) {
+      // Show the TV's reason and the ids tried, so a wrong id can be fixed in js/config.js.
+      $('hint').textContent = 'Couldn’t open ' + el.label + ' (' + el.appIds.join(', ') + ': ' +
+        ((e && (e.message || e.name)) || 'error') + ')';
+      setTimeout(function () { $('hint').textContent = ''; }, 10000);
     }).then(function () {
       busy = false;
       el.classList.remove('opening');
