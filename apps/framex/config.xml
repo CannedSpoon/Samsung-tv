@@ -7,7 +7,7 @@
   Samsung's browser (application.launch). Public-level privileges only.
 -->
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://quiet-home.local/framex" version="1.1.0" viewmodes="maximized">
+        id="http://quiet-home.local/framex" version="1.2.0" viewmodes="maximized">
     <tizen:application id="FrameXTV01.App" package="FrameXTV01" required_version="3.0"/>
     <name>FrameX TV</name>
     <description>framextv.cc, full screen.</description>
@@ -26,7 +26,9 @@
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
 
     <tizen:profile name="tv-samsung"/>
-    <tizen:metadata key="http://samsung.com/tv/metadata/multitasking.support" value="true"/>
+    <!-- No multitasking: each launch starts fresh at the start screen, rather
+         than resuming a page left open last time (which may be black). -->
+    <tizen:metadata key="http://samsung.com/tv/metadata/multitasking.support" value="false"/>
 
     <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable"
                    encryption="disable" install-location="auto" hwkey-event="enable"/>

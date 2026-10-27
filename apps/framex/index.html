@@ -31,7 +31,9 @@
      * full screen in this app (or in Samsung's browser, which has a pointer and
      * a newer engine than apps get on older TVs; the choice is remembered).
      * A blank site in the app usually means the site needs a newer engine:
-     * choose the browser. If the site can't be reached, it says why.
+     * choose the browser. If the site can't be reached, it says why. Nothing
+     * opens by itself until you've chosen once; after that your last choice
+     * opens after 3 seconds (Left/Right stops the countdown).
      */
     (function () {
       'use strict';
@@ -43,7 +45,7 @@
       var at = 0;
       var countdown = null;
 
-      function remembered() { try { return localStorage.getItem(MODE) || 'app'; } catch (e) { return 'app'; } }
+      function remembered() { try { return localStorage.getItem(MODE); } catch (e) { return null; } }
       function remember(m) { try { localStorage.setItem(MODE, m); } catch (e) { /* storage blocked */ } }
 
       function leave() {
@@ -135,13 +137,17 @@
           return;
         }
         probe().then(function (r) {
-          var preferBrowser = remembered() === 'browser';
-          var first = preferBrowser ? BROWSER : HERE;
-          var second = preferBrowser ? HERE : BROWSER;
+          var last = remembered();
+          var first = last === 'app' ? HERE : BROWSER;
+          var second = last === 'app' ? BROWSER : HERE;
           if (r.ok) {
-            $('detail').textContent = preferBrowser ? '' :
-              'If the site stays black in full screen, press Exit, open FrameX TV again and choose the browser.';
-            offer([first, second, EXIT], first);
+            $('detail').textContent = 'Samsung\u2019s browser works with more sites. Full screen may stay black on ' +
+              'this TV; if it does, press Exit, open FrameX TV again and choose the browser.';
+            if (last) offer([first, second, EXIT], first);
+            else {
+              $('status').textContent = 'framextv.cc is reachable. Choose how to open it.';
+              offer([first, second, EXIT]);
+            }
             return;
           }
           $('status').textContent = r.timeout ? 'framextv.cc isn’t answering.' : 'Couldn’t reach framextv.cc from the TV.';
