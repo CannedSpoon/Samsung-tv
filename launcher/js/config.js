@@ -68,6 +68,24 @@
     // Number keys 1-9 on the remote open that dock tile straight away.
     quickKeys: true,
 
+    // How tiles look and what focus does. Also switchable on the TV under +.
+    //   tiles: 'brand' (app colours) | 'glass' | 'mono' | 'paper'
+    //   focus: 'lift' | 'glow' | 'zoom' | 'tilt' | 'minimal'
+    look: { tiles: 'brand', focus: 'lift' },
+
+    // Featured: a slideshow of popular films and series on your services, with
+    // their logo and where to watch them; Up selects it, OK opens the app.
+    // Needs a free TMDB API key: `python tv.py featured YOUR_KEY`. Each provider
+    // lists TMDB watch-provider ids (from JustWatch) and the dock app it opens.
+    //   background: 'featured' (slideshow only) | 'mix' (with photos) | 'photos'
+    featured: {
+      enabled: false, apiKey: '', region: 'AU', language: 'en-AU',
+      background: 'featured', intervalMs: 12000, max: 14, types: ['movie', 'tv'],
+      providers: [
+        { label: 'Prime Video', app: 'Prime Video', tmdb: [9, 119] }
+      ]
+    },
+
     longPressMs: 700           // hold OK this long for the Move / Hide menu
   };
 }());

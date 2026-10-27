@@ -116,6 +116,34 @@ get its mark, and YouTube shortcuts show the video's thumbnail. The focused tile
 lifts, glows in the app's colour and catches a sweep of light. An app with no
 mark shows the icon the TV reports for it, or its name.
 
+**Themes and focus effects:** under **+** on the TV, *Tiles* switches between
+**Brand** (app colours), **Glass** (frosted, white marks), **Mono** (graphite)
+and **Paper** (light), and *Focus* between **Lift**, **Glow** (a halo in the
+app's colour), **Zoom**, **Tilt** (sways like a tvOS icon) and **Minimal**. The
+TV remembers your choice; the defaults are `look` in `launcher/js/config.js`.
+
+![Tile themes: Glass, Mono, Paper](docs/screenshots/themes.png)
+
+**Featured** (optional): the background becomes a slideshow of popular films
+and series on your services, each with its title logo, year, rating, a short
+summary and **Watch on Prime Video**. Press **Up** from the dock to select it,
+**Left/Right** for more, **OK** to open that app, **Down** to go back. Under +,
+*Background* switches between **Featured**, **Mix** (with the photos) and
+**Photos**. It needs a free [TMDB](https://www.themoviedb.org/) API key
+(sign up, then Settings > API > create one for personal use):
+
+```sh
+python tv.py featured YOUR_KEY          # checks the key; --region AU is the default
+python tv.py install
+```
+
+Which services count is `featured.providers` in `launcher/js/config.js` (TMDB
+watch-provider IDs, plus the dock app each opens); Prime Video is set up. Titles
+and logos are fetched at most once a day. Where to watch is JustWatch data via
+TMDB; both are credited on screen.
+
+![Featured: a title card over the slideshow](docs/screenshots/featured.png)
+
 **The screen:**
 - **Photos:** 20 nature photos (12 CC0 from Glass Home, 8 Unsplash from Arn0)
   plus any you upload, crossfading every minute with a slow drift.
@@ -147,8 +175,8 @@ number keys, photo website on/off). `tv.py weather` and `tv.py hdmi` write
 your own values to `launcher/js/config.local.js`. After any change, run
 `python tv.py install` (with Developer Mode on).
 
-**Network use:** only the photo website on the TV itself and, if you turn it on,
-the weather. No tracking.
+**Network use:** only the photo website on the TV itself and, if you turn them
+on, the weather (Open-Meteo) and Featured (TMDB). No tracking.
 
 It can't replace what the remote's Home button opens: Samsung doesn't allow
 that. With **Autorun Last App** on, the TV starts in Quiet Home if you turned it

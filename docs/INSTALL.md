@@ -120,6 +120,7 @@ Optional, before `install` (or run `install` again afterwards):
 ```sh
 python tv.py weather "Melbourne"      # weather under the clock (pick from the list)
 python tv.py hdmi 1 "PlayStation 5"   # name an HDMI tile (per port)
+python tv.py featured YOUR_TMDB_KEY   # slideshow of what's on your services (free key, themoviedb.org)
 ```
 
 Then turn **Developer Mode off** again (step 1, Off, restart the TV). Quiet Home

@@ -40,6 +40,13 @@ Titles, photographers and sources for each are in
 Weather data by [Open-Meteo.com](https://open-meteo.com/), CC BY 4.0 (credited
 on screen when weather is on).
 
+## Featured
+
+Titles, artwork and logos from [TMDB](https://www.themoviedb.org/). This product
+uses the TMDB API but is not endorsed or certified by TMDB. Where to watch:
+[JustWatch](https://www.justwatch.com/), via TMDB's watch providers. Both are
+credited on screen while Featured shows.
+
 ## Trademarks
 
 Samsung, Tizen, Smart Hub, Samsung TV Plus, Apple TV, Netflix, YouTube, Prime

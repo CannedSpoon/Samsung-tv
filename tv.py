@@ -25,6 +25,7 @@ Other commands:
   python3 tv.py camera          use a webcam to photograph the TV at each step (optional)
   python3 tv.py weather "Town"  show the weather on Quiet Home (then install again)
   python3 tv.py hdmi 1 "Xbox"   name an HDMI tile (then install again)
+  python3 tv.py featured KEY    slideshow of what's on your services (free TMDB key; then install)
   python3 tv.py cert --country GB      make the free Samsung signing certificate for this TV
   python3 tv.py install framex  build and install the FrameX TV app (framextv.cc, full screen)
   python3 tv.py uninstall [framex]     remove Quiet Home (or the FrameX TV app)
@@ -45,6 +46,7 @@ import subprocess
 import sys
 import secrets
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -643,6 +645,41 @@ def cmd_weather(args):
     say(f"Weather set to {labels[found.index(pick)]}. Run  python3 tv.py install  to update the TV.")
 
 
+def cmd_featured(args):
+    """Featured slideshow: checks the TMDB key, then saves it with the region."""
+    if args.off:
+        save_setting("featured", {"enabled": False})
+        say("Featured is off. Run  python3 tv.py install  to update the TV.")
+        return
+    if not args.key:
+        die("Give your TMDB API key:  python3 tv.py featured YOUR_KEY\n"
+            "Get one free: sign up at themoviedb.org, then Settings > API > Create (personal use).\n"
+            "Either the 'API Key' or the longer 'API Read Access Token' works.")
+    key = args.key.strip()
+    url = "https://api.themoviedb.org/3/configuration"
+    headers = {}
+    if key.startswith("eyJ"):
+        headers["Authorization"] = "Bearer " + key
+    else:
+        url += "?api_key=" + urllib.parse.quote(key)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=15) as r:
+            ok = r.status == 200
+    except urllib.error.HTTPError as e:
+        ok = False
+        if e.code == 401:
+            die("TMDB says that key isn't valid. Copy it again from themoviedb.org > Settings > API.")
+    except OSError as e:
+        die(f"Couldn't reach TMDB to check the key: {e}")
+    if not ok:
+        die("TMDB didn't accept the key.")
+    region = args.region.upper()
+    save_setting("featured", {"enabled": True, "apiKey": key, "region": region,
+                              "language": args.language or f"en-{region}"})
+    say(f"Featured is on, for what's streaming in {region}. Run  python3 tv.py install  to update the TV.")
+    say("On the TV: press Up from the dock to pick a title, Left/Right for more, OK to open its app.")
+
+
 def cmd_hdmi(args):
     names = load_json(LOCAL_SETTINGS, {}).get("inputs", {}).get("names", {})
     if args.name:
@@ -850,6 +887,11 @@ def main():
     p.add_argument("place", nargs="?", help='your town, e.g. "Melbourne"')
     p.add_argument("--off", action="store_true")
     p.add_argument("--fahrenheit", action="store_true")
+    p = sub.add_parser("featured")
+    p.add_argument("key", nargs="?", help="your TMDB API key or read access token")
+    p.add_argument("--region", default="AU", help="2-letter country for where-to-watch (default AU)")
+    p.add_argument("--language", help="e.g. en-AU (default: en-<region>)")
+    p.add_argument("--off", action="store_true")
     p = sub.add_parser("hdmi")
     p.add_argument("port", type=int, help="HDMI port number")
     p.add_argument("name", nargs="?", help='e.g. "PlayStation"; leave out to go back to "HDMI n"')

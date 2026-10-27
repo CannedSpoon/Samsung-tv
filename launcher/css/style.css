@@ -194,3 +194,71 @@ footer, #caption { transition: opacity .8s ease; }
   font-size: 26px; background: rgba(255,255,255,.08);
 }
 .choice.focus { background: #fff; color: #111; }
+
+/* ---- Featured: the title card over the slideshow ---- */
+#hero, #tmdb-credit { display: none; }
+.featured-on #hero, .featured-on #tmdb-credit { display: block; }
+.featured-on #scrim {
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.7) 0%, rgba(0,0,0,.35) 38%, rgba(0,0,0,0) 62%),
+    linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 26%),
+    linear-gradient(0deg, rgba(0,0,0,.6) 0%, rgba(0,0,0,0) 45%);
+}
+#hero { position: absolute; left: 96px; bottom: 360px; width: 820px; transition: opacity .8s ease; }
+#hero-logo {
+  display: block; max-width: 560px; max-height: 190px; margin-bottom: 22px;
+  filter: drop-shadow(0 4px 18px rgba(0,0,0,.55));
+}
+#hero-title { font-size: 72px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.05; margin-bottom: 18px;
+  text-shadow: 0 3px 20px rgba(0,0,0,.5); }
+#hero-meta { font-size: 26px; opacity: .85; margin-bottom: 12px; }
+#hero-overview {
+  font-size: 24px; line-height: 1.4; opacity: .8; max-height: 2.8em; overflow: hidden;
+  text-shadow: 0 2px 10px rgba(0,0,0,.6);
+}
+#hero-watch {
+  display: inline-flex; align-items: center; margin-top: 22px;
+  padding: 12px 22px; border-radius: 16px;
+  font-size: 24px; font-weight: 600;
+  background: rgba(255,255,255,.14);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
+  transition: transform .18s ease, background .18s ease, color .18s ease;
+}
+#hero-mark { height: 30px; max-width: 120px; margin: -10px 12px -10px 0; }
+.hero-focus #hero-watch { background: #fff; color: #111; transform: scale(1.06); }
+.hero-focus #hero-mark { filter: brightness(0); }
+.hero-focus #dock { opacity: .55; }
+#tmdb-credit { position: absolute; right: 96px; bottom: 26px; font-size: 15px; opacity: .45; }
+.asleep #hero, .asleep #tmdb-credit { opacity: 0; }
+.featured-on #caption { display: none; }
+
+/* ---- tile themes (also switchable under +) ---- */
+/* glass: frosted tiles, white marks; the app's colour shows only in the glow */
+.tiles-glass .tile:not(.video) { background: rgba(255,255,255,.13); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+.tiles-glass .tile .art, .tiles-mono .tile .art { filter: brightness(0) invert(1); }
+/* mono: graphite tiles, white marks */
+.tiles-mono .tile:not(.video) { background: linear-gradient(160deg, #2b2d33, #141518); }
+/* paper: light tiles, dark marks */
+.tiles-paper .tile:not(.video) { background: linear-gradient(160deg, #ffffff, #e6e7eb); color: #15161a; }
+.tiles-paper .tile .art { filter: brightness(0); }
+.tiles-paper .tile .glyph svg { filter: invert(1); }
+.tiles-glass .tile::after, .tiles-mono .tile::after, .tiles-paper .tile::after { display: none; }
+
+/* ---- focus effects (also switchable under +); 'lift' is the default above ---- */
+/* glow: no lift, a strong halo in the app's colour */
+.focus-glow .tile.focus { transform: scale(1.05); box-shadow: 0 0 0 3px var(--glow), 0 0 46px 8px var(--glow); }
+.focus-glow .tile.focus::before { animation: none; }
+/* zoom: a big step forward, deep shadow, no ring */
+.focus-zoom .tile.focus { transform: translateY(-18px) scale(1.22); box-shadow: 0 34px 60px rgba(0,0,0,.6); }
+/* tilt: tips forward and sways gently, like a tvOS icon */
+.focus-tilt #strip { perspective: 900px; }
+.focus-tilt .tile.focus { animation: sway 3.2s ease-in-out infinite alternate; }
+@keyframes sway {
+  from { transform: translateY(-10px) scale(1.12) rotateX(7deg) rotateY(-7deg); }
+  to { transform: translateY(-10px) scale(1.12) rotateX(7deg) rotateY(7deg); }
+}
+/* minimal: no movement; a bright bar under the tile */
+.focus-minimal .tile.focus { transform: none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.5); }
+.focus-minimal .tile.focus::before { animation: none; }
+.focus-minimal .tile.focus::after { display: block; height: 7px; background: #fff; }
+.focus-minimal .tile.focus .art, .focus-minimal .tile.focus .wordmark, .focus-minimal .tile.focus .thumb { transform: none; }

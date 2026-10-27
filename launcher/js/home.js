@@ -68,9 +68,10 @@
   var layers = [$('bg-a'), $('bg-b')];
   var front = 0;
   var order = [];
-  var next = 0;
+  var cur = -1;
   var photoTimer = null;
   var userPhotos = [];
+  var slides = [];            // Featured titles (js/featured.js)
   document.documentElement.style.setProperty('--fade', cfg.fadeMs + 'ms');
   document.documentElement.style.setProperty('--drift', (cfg.photoIntervalMs + cfg.fadeMs) + 'ms');
   if (!cfg.drift) body.classList.add('no-drift');
@@ -84,15 +85,28 @@
     return list;
   }
 
-  // Bundled and uploaded photos, shuffled; photos just uploaded come next.
+  function background() {
+    return slides.length ? (look.background || cfg.featured.background) : 'photos';
+  }
+
+  // What the background shows: bundled and uploaded photos, shuffled (photos
+  // just uploaded come next), Featured titles, or the two taken in turn.
   function setPhotos(fresh) {
-    var all = shuffle(QH.wallpapers.concat(userPhotos));
+    var photos = shuffle(QH.wallpapers.concat(userPhotos));
     if (fresh && fresh.length) {
       var ids = fresh.map(function (p) { return p.file; });
-      all = fresh.concat(all.filter(function (p) { return ids.indexOf(p.file) < 0; }));
+      photos = fresh.concat(photos.filter(function (p) { return ids.indexOf(p.file) < 0; }));
     }
-    order = all;
-    next = 0;
+    var bg = background();
+    if (bg === 'featured') order = slides.slice();
+    else if (bg === 'mix') {
+      order = [];
+      for (var i = 0; i < Math.max(slides.length, photos.length); i++) {
+        if (slides[i]) order.push(slides[i]);
+        if (photos[i]) order.push(photos[i]);
+      }
+    } else order = photos;
+    cur = -1;
   }
 
   // Loads and decodes the image before it is shown, so the crossfade never
@@ -109,9 +123,11 @@
     });
   }
 
-  function showNext() {
-    var photo = order[next];
-    next = (next + 1) % order.length;
+  function showAt(i) {
+    if (!order.length) return;
+    clearTimeout(photoTimer);
+    i = (i + order.length) % order.length;
+    var photo = order[i];
     load(photo.file).then(function (src) {
       var back = layers[1 - front];
       back.style.backgroundImage = 'url("' + src + '")';
@@ -120,13 +136,105 @@
       back.classList.add('shown');
       layers[front].classList.remove('shown');
       front = 1 - front;
-      $('caption').textContent = photo.title || '';
-    }, function () { /* skip a photo that fails to load */ }).then(schedulePhoto);
+      cur = i;
+      $('caption').textContent = photo.slide ? '' : photo.title || '';
+      showHero(photo);
+    }, function () { cur = i; /* skip a photo that fails to load */ }).then(schedulePhoto);
   }
+  function showNext() { showAt(cur + 1); }
+
+  // The next or previous Featured title (skipping photos when mixed).
+  function stepSlide(dir) {
+    for (var k = 1; k <= order.length; k++) {
+      var j = ((cur + dir * k) % order.length + order.length) % order.length;
+      if (order[j].slide) { showAt(j); return; }
+    }
+  }
+
   function schedulePhoto() {
     clearTimeout(photoTimer);
-    if (!document.hidden) photoTimer = setTimeout(showNext, cfg.photoIntervalMs);
+    var slide = order[cur] && order[cur].slide;
+    if (!document.hidden) photoTimer = setTimeout(showNext, slide ? cfg.featured.intervalMs : cfg.photoIntervalMs);
   }
+
+  // ---- Featured: the title card over the slideshow --------------------------
+  var heroSlide = null;
+
+  function showHero(p) {
+    heroSlide = p && p.slide ? p : null;
+    if (!heroSlide) {
+      body.classList.remove('featured-on');
+      if (mode === 'hero') leaveHero();
+      return;
+    }
+    body.classList.add('featured-on');
+    var logo = $('hero-logo');
+    var title = $('hero-title');
+    title.textContent = p.title;
+    title.style.display = p.logo ? 'none' : '';
+    logo.style.display = p.logo ? '' : 'none';
+    if (p.logo) {
+      logo.onerror = function () { logo.style.display = 'none'; title.style.display = ''; };
+      logo.src = p.logo;
+    }
+    $('hero-meta').textContent = [p.kind, p.year, p.rating ? '\u2605 ' + p.rating : ''].filter(Boolean).join('  \u00b7  ');
+    $('hero-overview').textContent = p.overview;
+    var app = appFor(p.app);
+    $('hero-watch-text').textContent = (app ? 'Watch on ' : 'On ') + p.provider;
+    var brand = QH.brands.find(p.provider);
+    var mark = $('hero-mark');
+    mark.style.display = brand && brand.mark ? '' : 'none';
+    if (brand && brand.mark) {
+      mark.src = 'img/marks/' + brand.mark + '.svg';
+      // Wordmarks are wide and thin in their square box, so they get more height, as on the tiles.
+      mark.style.height = Math.min(64, Math.round(30 * (brand.size || 50) / 50)) + 'px';
+    }
+  }
+
+  function appFor(label) {
+    for (var i = 0; i < apps.length; i++) if (apps[i].label === label) return apps[i];
+    return null;
+  }
+
+  function enterHero() {
+    if (!heroSlide) return;
+    mode = 'hero';
+    tiles[focus].classList.remove('focus');
+    body.classList.add('hero-focus');
+    $('label').textContent = '\u25c0 \u25b6 more  \u00b7  OK to watch  \u00b7  \u25bc back to apps';
+  }
+
+  function leaveHero() {
+    mode = 'dock';
+    body.classList.remove('hero-focus');
+    setFocus(focus);
+  }
+
+  function watchHero() {
+    var app = heroSlide && appFor(heroSlide.app);
+    if (!app) { hint(heroSlide.title + ' is on ' + heroSlide.provider + ', which isn\u2019t in your dock.'); return; }
+    platform.launch(app.ids).then(null, function () { hint('Couldn\u2019t open ' + app.label + '.'); });
+  }
+
+  // ---- look: tile theme, focus effect, background ---------------------------
+  var LOOK = 'qh.look.v1';
+  var THEMES = ['brand', 'glass', 'mono', 'paper'];
+  var EFFECTS = ['lift', 'glow', 'zoom', 'tilt', 'minimal'];
+  var BACKGROUNDS = ['featured', 'mix', 'photos'];
+  var look = platform.store.get(LOOK) || {};
+
+  function applyLook() {
+    var tilesTheme = look.tiles || cfg.look.tiles;
+    var effect = look.focus || cfg.look.focus;
+    body.className = body.className.replace(/\b(tiles|focus)-\w+/g, '').trim();
+    body.classList.add('tiles-' + tilesTheme);
+    body.classList.add('focus-' + effect);
+  }
+
+  function cycle(list, now) { return list[(list.indexOf(now) + 1) % list.length]; }
+  function title(word) { return word.charAt(0).toUpperCase() + word.slice(1); }
+
+  var mode = 'dock';          // 'dock' | 'hero' | 'menu' | 'panel'
 
   // ---- dock ------------------------------------------------------------------
   var apps = [];
@@ -297,7 +405,6 @@
   }
 
   // ---- hold OK: Move / Hide menu -------------------------------------------
-  var mode = 'dock';          // 'dock' | 'menu' | 'panel'
   var menuItems = [];
   var menuFocus = 0;
 
@@ -371,6 +478,18 @@
     $('panel-site').style.display = cfg.photoWebsite.enabled ? '' : 'none';
     // Close first, so a stray OK doesn't make a new password (which signs phones out).
     panelActions = [{ label: 'Close', run: closePanel }];
+    panelActions.push({ label: 'Tiles: ' + title(look.tiles || cfg.look.tiles), run: function () {
+      look.tiles = cycle(THEMES, look.tiles || cfg.look.tiles); platform.store.set(LOOK, look); applyLook(); renderPanel();
+    } });
+    panelActions.push({ label: 'Focus: ' + title(look.focus || cfg.look.focus), run: function () {
+      look.focus = cycle(EFFECTS, look.focus || cfg.look.focus); platform.store.set(LOOK, look); applyLook(); renderPanel();
+    } });
+    if (slides.length) {
+      panelActions.push({ label: 'Background: ' + title(background()), run: function () {
+        look.background = cycle(BACKGROUNDS, background()); platform.store.set(LOOK, look);
+        setPhotos(); showNext(); renderPanel();
+      } });
+    }
     if (cfg.photoWebsite.enabled && service.online) {
       panelActions.push({ label: 'New password', run: function () {
         service.newPassword().then(renderPanel, function () { hint('Couldn’t make a password.'); });
@@ -415,6 +534,7 @@
     if (cfg.screensaver.enabled && !document.hidden) idleTimer = setTimeout(sleep, cfg.screensaver.afterMs);
   }
   function sleep() {
+    if (mode === 'hero') leaveHero();
     if (mode === 'menu') closeMenu();
     if (mode === 'panel') closePanel();
     asleep = true;
@@ -445,6 +565,16 @@
       // Back closes a menu; on the home screen there is nowhere to go back to.
       if (mode === 'menu') closeMenu();
       else if (mode === 'panel') closePanel();
+      else if (mode === 'hero') leaveHero();
+      e.preventDefault();
+      return;
+    }
+    if (mode === 'hero') {
+      if (k === KEY.LEFT) stepSlide(-1);
+      else if (k === KEY.RIGHT) stepSlide(1);
+      else if (k === KEY.DOWN) leaveHero();
+      else if (k === KEY.ENTER) watchHero();
+      else return;
       e.preventDefault();
       return;
     }
@@ -470,6 +600,7 @@
     }
     if (k === KEY.LEFT) setFocus(focus - 1);
     else if (k === KEY.RIGHT) setFocus(focus + 1);
+    else if (k === KEY.UP) enterHero();
     else if (k === KEY.ENTER) {
       if (enterDown) return;                    // auto-repeat while held
       enterDown = true;
@@ -552,13 +683,26 @@
   });
 
   // For the browser preview and tests: skip to the next photo.
-  QH.debug = { nextPhoto: function () { clearTimeout(photoTimer); showNext(); } };
+  QH.debug = { nextPhoto: function () { showNext(); } };
 
   // ---- start -------------------------------------------------------------------
+  applyLook();
   userPhotos = service.photos();
   setPhotos();
   tick();
   showNext();
+  // Featured: from the day's cache straight away, fetched again at most daily.
+  function loadFeatured() {
+    QH.featured.load().then(function (list) {
+      var had = slides.length;
+      slides = list;
+      if (list.length || had) { setPhotos(); showNext(); }
+    });
+  }
+  if (QH.featured.enabled()) {
+    loadFeatured();
+    setInterval(loadFeatured, 6 * 3600 * 1000);
+  }
   poke();
   if (cfg.quickKeys) platform.registerKeys(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
   if (QH.weather.enabled()) {
