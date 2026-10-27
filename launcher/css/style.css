@@ -81,26 +81,72 @@ footer { position: absolute; left: 0; right: 0; bottom: 72px; text-align: center
   border-radius: 22px;
   background: var(--tile);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 8px 20px rgba(0,0,0,.3);
-  display: flex; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   overflow: hidden;
-  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
 }
 .tile::after {
-  /* a bar in the app's colour along the bottom edge */
+  /* a bar in the app's colour along the bottom edge, for tiles without a mark */
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px;
   background: var(--accent);
 }
+.tile.branded::after, .tile.video::after, .tile.glyphed::after, .tile.system::after, .tile.plus::after { display: none; }
 .tile .name {
   font-size: 30px; font-weight: 700; letter-spacing: -.2px; padding: 0 20px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tile.system { min-width: 172px; max-width: 172px; background: rgba(255,255,255,.14); }
-.tile.system::after { display: none; }
+.tile .art { max-width: 76%; transition: transform .3s ease-out; }
+.tile .icon { height: 58%; border-radius: 12px; }
+.tile .wordmark { font-size: 38px; font-weight: 800; letter-spacing: -.8px; transition: transform .3s ease-out; }
+.tile .glyph { width: 52px; height: 52px; opacity: .9; }
+.tile .glyph svg { width: 100%; height: 100%; display: block; }
+.tile .sub {
+  margin-top: 6px; max-width: 90%; font-size: 20px; font-weight: 600; opacity: .85;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tile.branded .sub { position: absolute; bottom: 8px; margin: 0; font-size: 16px; opacity: .75; }
+
+/* YouTube shortcuts: the video's thumbnail, its title, a small YouTube badge */
+.tile.video { min-width: 220px; max-width: 220px; }
+.tile .thumb {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  background: #000 center / cover no-repeat;
+  transition: transform 6s linear;
+}
+.tile .badge {
+  position: absolute; left: 10px; bottom: 9px; height: 18px;
+  padding: 3px 5px; border-radius: 6px; background: #fff;
+}
+.tile .cap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 30px 12px 8px 46px; text-align: left;
+  font-size: 19px; font-weight: 600;
+  background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.8));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.tile.system { min-width: 172px; max-width: 172px; }
+.tile.system:not(.branded) { background: rgba(255,255,255,.14); }
 .tile.system .name { font-size: 25px; font-weight: 500; }
 
+/* Focus: lift, a white ring, a glow in the app's colour, a sweep of light
+   across the tile, and the mark or thumbnail eases forward. */
+.tile::before {
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 2;
+  background: linear-gradient(105deg, rgba(255,255,255,0) 35%, rgba(255,255,255,.4) 50%, rgba(255,255,255,0) 65%);
+  background-size: 250% 100%; background-position: 160% 0;
+  opacity: 0; pointer-events: none;
+}
 .tile.focus {
   transform: translateY(-10px) scale(1.12);
-  box-shadow: inset 0 0 0 3px rgba(255,255,255,.9), 0 24px 44px rgba(0,0,0,.5);
+  box-shadow: 0 0 0 4px rgba(255,255,255,.95), 0 24px 44px rgba(0,0,0,.5), 0 14px 60px -8px var(--glow);
+}
+.tile.focus::before { animation: sheen .9s ease-out .08s 1; }
+.tile.focus .art, .tile.focus .wordmark { transform: scale(1.08); }
+.tile.focus .thumb { transform: scale(1.14); }
+@keyframes sheen {
+  from { opacity: 1; background-position: 160% 0; }
+  to { opacity: 1; background-position: -60% 0; }
 }
 .tile.opening { transform: translateY(-10px) scale(1.04); opacity: .8; }
 
@@ -116,9 +162,7 @@ footer { position: absolute; left: 0; right: 0; bottom: 72px; text-align: center
 
 /* ---- more tile kinds ---- */
 .tile.plus { min-width: 124px; max-width: 124px; background: rgba(255,255,255,.14); }
-.tile.plus::after { display: none; }
 .tile.plus .name { font-size: 54px; font-weight: 300; }
-.tile.input .name { font-size: 27px; }
 
 /* ---- screensaver: photos and clock only ---- */
 footer, #caption { transition: opacity .8s ease; }

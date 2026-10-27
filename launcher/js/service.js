@@ -78,6 +78,9 @@
     });
   };
 
+  // A file the service serves (e.g. a website shortcut's icon), with the key.
+  S.media = function (path) { return base + path + '?k=' + encodeURIComponent(key); };
+
   S.shortcuts = function () { return (state && state.shortcuts) || []; };
 
   // What the + panel shows: { url, password, note }.

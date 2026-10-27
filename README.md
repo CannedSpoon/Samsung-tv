@@ -97,14 +97,24 @@ photos are an optional extra record:
 ![The + panel: add photos and shortcuts from your phone](docs/screenshots/panel.png)
 
 **The dock**, in this order until you move things:
-- **Your apps:** Netflix, YouTube, Prime Video, Disney+, Stremio and Samsung TV
-  Plus. Apps that aren't installed are left out; if an app has more than one ID
-  on Samsung TVs, each is tried until one opens.
+- **Your apps:** YouTube, Prime Video, Stremio and Samsung TV Plus. Apps that
+  aren't installed are left out; if an app has more than one ID on Samsung TVs,
+  each is tried until one opens.
+- **Website tiles** from `sites` in `launcher/js/config.js` (FrameX TV for now),
+  opened in Samsung's own browser.
 - **HDMI inputs** with something plugged in. Name them with
   `python tv.py hdmi 1 "PlayStation 5"`; otherwise they show as "HDMI 1".
 - **Shortcuts you add from your phone:** YouTube videos and websites.
+  (Add a website here too, without touching config.js.)
 - **+**, then **Smart Hub** (Samsung's own home screen, your way back to
   settings), which always stay last.
+
+**The tiles look like the apps:** each shows the app's mark on a background like
+its own icon (YouTube, Prime Video, Stremio, PlayStation, Xbox, Switch, Foxtel,
+Samsung and more, in `launcher/js/brands.js`). HDMI tiles named after a device
+get its mark, and YouTube shortcuts show the video's thumbnail. The focused tile
+lifts, glows in the app's colour and catches a sweep of light. An app with no
+mark shows the icon the TV reports for it, or its name.
 
 **The screen:**
 - **Photos:** 20 nature photos (12 CC0 from Glass Home, 8 Unsplash from Arn0)

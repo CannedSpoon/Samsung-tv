@@ -49,8 +49,13 @@
   // first app whose name matches. The full app list (slower) is only read when
   // some entry has no installed id.
   P.resolveApps = function (defs) {
-    var found = defs.map(function (def) {
-      return def.ids.filter(function (id) { return !!byId(id, MOCK); });
+    var icons = [];
+    var found = defs.map(function (def, i) {
+      return def.ids.filter(function (id) {
+        var info = byId(id, MOCK);
+        if (info && !icons[i]) icons[i] = info.iconPath || null;
+        return !!info;
+      });
     });
     var needsList = found.some(function (ids, i) { return !ids.length && defs[i].names.length; });
     return (needsList ? allApps() : Promise.resolve([])).then(function (list) {
@@ -63,6 +68,7 @@
           for (var j = 0; j < apps.length; j++) {
             if (taken[apps[j].id] || !re.test(norm(apps[j].name))) continue;
             found[i] = [apps[j].id];
+            icons[i] = apps[j].iconPath || null;
             taken[apps[j].id] = true;
             break;
           }
@@ -70,11 +76,22 @@
       });
       var out = [];
       defs.forEach(function (def, i) {
-        if (found[i].length) out.push({ label: def.label, color: def.color, accent: def.accent, ids: found[i] });
+        if (found[i].length) {
+          out.push({ label: def.label, color: def.color, accent: def.accent, ids: found[i], icon: iconUrl(icons[i]) });
+        }
       });
       return out;
     });
   };
+
+  // The TV reports icons as file paths; some apps report none or a poor one,
+  // so tiles only use this when js/brands.js has no mark for the app.
+  function iconUrl(path) {
+    if (!path) return null;
+    var s = String(path);
+    if (/^(file|https?|data):/i.test(s)) return s;
+    return s.charAt(0) === '/' ? 'file://' + s : s;
+  }
 
   // Opens one app id: a plain launch, then an app-control launch.
   function launchOne(id) {

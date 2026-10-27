@@ -17,6 +17,14 @@
   and eight photos. Its native Home-button helper is
   deliberately not used: it is untested beyond one TV and firmware.
 
+## Brand marks
+
+`launcher/img/marks/` (made by `dev/brands.py`): from
+[Simple Icons](https://simpleicons.org/) 13.21.0 (CC0), and Xbox from Custom
+Brand Icons via Arn0 Launcher (MIT); see its `SOURCES.md`. The marks and names
+are trademarks of their owners, used only to identify each app or device on its
+tile. Tile colours follow Arn0 Launcher's `brands.js` in part.
+
 ## Photos
 
 - `nature-*.jpg` (12): CC0 1.0 (public domain) from Wikimedia Commons, as listed
@@ -36,4 +44,4 @@ on screen when weather is on).
 
 Samsung, Tizen, Smart Hub, Samsung TV Plus, Apple TV, Netflix, YouTube, Prime
 Video, Disney+, Stremio and other names belong to their owners. This project
-isn't affiliated with any of them and draws no third-party logos.
+isn't affiliated with any of them.

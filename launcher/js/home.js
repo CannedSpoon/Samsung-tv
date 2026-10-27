@@ -143,22 +143,93 @@
 
   // Everything that can be in the dock, before your order and hidden tiles.
   function candidates() {
+    var brand = QH.brands.find;
     var list = apps.map(function (a) {
-      return { key: 'app:' + a.label, kind: 'app', label: a.label, color: a.color, accent: a.accent, ids: a.ids };
+      return { key: 'app:' + a.label, kind: 'app', label: a.label, color: a.color, accent: a.accent, ids: a.ids,
+               brand: brand(a.label + ' ' + a.ids.join(' ')), icon: a.icon };
+    });
+    (cfg.sites || []).forEach(function (site) {
+      list.push({ key: 'site:' + site.label, kind: 'site', label: site.label, url: site.url, title: site.label,
+                  color: site.color, accent: site.accent, brand: brand(site.label + ' ' + site.url), glyph: 'globe' });
     });
     ports.forEach(function (p) {
       var name = inputLabel(p.number);
+      var plain = name === 'HDMI ' + p.number;
       list.push({ key: 'hdmi:' + p.number, kind: 'input', number: p.number, label: name,
-                  title: name === 'HDMI ' + p.number ? name : name + '  (HDMI ' + p.number + ')',
-                  color: '#1c222c', accent: p.connected ? '#9fb3c8' : '#4a5563' });
+                  title: plain ? name : name + '  (HDMI ' + p.number + ')', sub: plain ? '' : 'HDMI ' + p.number,
+                  color: '#1c222c', accent: p.connected ? '#9fb3c8' : '#4a5563',
+                  brand: plain ? null : brand(name), glyph: 'hdmi' });
     });
     service.shortcuts().forEach(function (s) {
       var yt = s.type === 'youtube';
       list.push({ key: 'sc:' + s.id, kind: 'shortcut', shortcut: s, label: s.name || (yt ? 'YouTube video' : 'Website'),
                   title: (yt ? 'YouTube: ' : 'Website: ') + (s.name || s.url),
-                  color: yt ? '#1f1f1f' : '#17262f', accent: yt ? '#ff0033' : '#7fd1ff' });
+                  color: yt ? '#1f1f1f' : '#17262f', accent: yt ? '#ff0033' : '#7fd1ff',
+                  thumb: yt && s.videoId ? 'https://i.ytimg.com/vi/' + s.videoId + '/hqdefault.jpg' : null,
+                  icon: !yt && s.icon ? service.media(s.icon) : null, glyph: yt ? null : 'globe' });
     });
     return list;
+  }
+
+  var GLYPHS = {
+    hdmi: '<svg viewBox="0 0 48 48" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round">' +
+      '<path d="M6 16h36v10l-5 6H11l-5-6z"/><path d="M14 22h20"/></svg>',
+    globe: '<svg viewBox="0 0 48 48" fill="none" stroke="#fff" stroke-width="3"><circle cx="24" cy="24" r="17"/>' +
+      '<path d="M7 24h34M24 7c-6 5-6 29 0 34M24 7c6 5 6 29 0 34"/></svg>'
+  };
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  }
+
+  // One dock tile, made to look like the app: its mark on its brand colours, a
+  // video thumbnail, a site icon, the TV's own icon, or failing those its name.
+  function buildTile(it) {
+    var t = el('div', 'tile' + (it.fixed ? ' system' : '') + (it.kind === 'plus' ? ' plus' : ''));
+    var b = it.brand;
+    t.setAttribute('data-label', it.label);
+    t.style.setProperty('--tile', (b && b.bg) || it.color || 'rgba(255,255,255,.14)');
+    t.style.setProperty('--accent', it.accent || '#fff');
+    t.style.setProperty('--glow', (b && b.glow) || it.accent || 'rgba(255,255,255,.4)');
+    function name() { t.classList.remove('branded'); t.appendChild(el('span', 'name', it.label)); }
+    if (it.thumb) {
+      t.classList.add('video');
+      var th = el('div', 'thumb');
+      th.style.backgroundImage = 'url("' + it.thumb + '")';
+      t.appendChild(th);
+      var badge = el('img', 'badge');
+      badge.src = 'img/marks/youtube.svg';
+      t.appendChild(badge);
+      t.appendChild(el('span', 'cap', it.label));
+    } else if (b && b.mark) {
+      t.classList.add('branded');
+      var art = el('img', 'art');
+      art.src = 'img/marks/' + b.mark + '.svg';
+      art.style.height = (b.size || 50) + '%';
+      t.appendChild(art);
+      if (it.sub) t.appendChild(el('span', 'sub', it.sub));
+    } else if (b && b.text) {
+      t.classList.add('branded');
+      t.appendChild(el('span', 'wordmark', b.text));
+    } else if (it.icon) {
+      var icon = el('img', 'art icon');
+      icon.onerror = function () { icon.parentNode && icon.parentNode.removeChild(icon); name(); };
+      icon.src = it.icon;
+      t.appendChild(icon);
+      if (it.kind === 'shortcut') t.appendChild(el('span', 'sub', it.label));
+    } else if (it.glyph) {
+      t.classList.add('glyphed');
+      var g = el('div', 'glyph');
+      g.innerHTML = GLYPHS[it.glyph];
+      t.appendChild(g);
+      t.appendChild(el('span', 'sub', it.label));
+    } else {
+      name();
+    }
+    return t;
   }
 
   function rebuildDock() {
@@ -171,21 +242,14 @@
     all.forEach(function (it) { if (byKey[it.key]) ordered.push(it); });
     items = ordered.filter(function (it) { return prefs.hidden.indexOf(it.key) < 0; });
     items.push({ key: 'plus', kind: 'plus', label: '+', title: 'Add photos and shortcuts, hidden tiles', fixed: true });
-    items.push({ key: 'home', kind: 'app', label: cfg.samsungHome.label, ids: [cfg.samsungHome.id], fixed: true });
+    items.push({ key: 'home', kind: 'app', label: cfg.samsungHome.label, ids: [cfg.samsungHome.id], fixed: true,
+                 brand: QH.brands.find(cfg.samsungHome.id) });
 
     strip.innerHTML = '';
     tiles = items.map(function (it) {
-      var el = document.createElement('div');
-      el.className = 'tile' + (it.fixed ? ' system' : '') + (it.kind === 'plus' ? ' plus' : '') +
-        (it.kind === 'input' ? ' input' : '');
-      el.style.setProperty('--tile', it.color || 'rgba(255,255,255,.14)');
-      el.style.setProperty('--accent', it.accent || '#fff');
-      var name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = it.label;
-      el.appendChild(name);
-      strip.appendChild(el);
-      return el;
+      var t = buildTile(it);
+      strip.appendChild(t);
+      return t;
     });
     var at = 0;
     for (var i = 0; i < items.length; i++) if (items[i].key === keep) at = i;
@@ -218,6 +282,7 @@
     if (it.kind === 'input') job = QH.inputs.open(it.number, cfg.inputs.method);
     else if (it.kind === 'shortcut' && it.shortcut.type === 'youtube') job = platform.openYouTube(it.shortcut, youtubeIds());
     else if (it.kind === 'shortcut') job = platform.openUrl(it.shortcut.url);
+    else if (it.kind === 'site') job = platform.openUrl(it.url);
     else job = platform.launch(it.ids);
     busy = true;
     el.classList.add('opening');
