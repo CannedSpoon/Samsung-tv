@@ -97,10 +97,38 @@ def run(cmd, quiet=False, timeout=600, secret=None):
     out = (p.stdout + p.stderr).strip()
     if out and not quiet:
         print(out, flush=True)
-    # The tizen CLI sometimes exits 0 after printing an error, so check its words too.
-    if p.returncode != 0 or re.search(r"(?im)^\s*(error|failed|\[error\])", out):
-        raise ToolError(out or f"{os.path.basename(cmd[0])} exited with {p.returncode}")
+    # The tizen CLI sometimes exits 0 after printing an error, or makes an unsigned
+    # package with only a warning (which the TV then rejects), so check its words too.
+    if (p.returncode != 0 or re.search(r"(?im)^\s*(error|failed|\[error\])", out)
+            or any(w in out for w in UNSIGNED_WARNINGS)):
+        if any(w in out for w in UNSIGNED_WARNINGS):
+            raise ToolError("The package isn't signed with your Samsung certificate. "
+                            "Run:  python tv.py cert --country XX  (your country code), then install again.")
+        tool = os.path.basename(cmd[0])
+        raise ToolError(f"{tool} {cmd[1] if len(cmd) > 1 else ''} failed (output above)." if out and not quiet
+                        else out or f"{tool} exited with {p.returncode}")
     return out
+
+
+# Printed by `tizen package` / `tizen install-permit` when no usable signing profile is set.
+UNSIGNED_WARNINGS = ("Not found tizen signature file", "Not found tizen author signature file",
+                     "Please check the active certificate profile")
+
+
+def need_signing(tizen):
+    """Stops before building if the Samsung certificate isn't made and registered yet."""
+    folder = cert_dir()
+    if not all(os.path.exists(os.path.join(folder, f)) for f in ("author.p12", "distributor.p12")):
+        raise ToolError("There's no Samsung signing certificate yet, so the TV would refuse the app.\n"
+                        "Run:  python tv.py cert --country XX   (your 2-letter country code), then install again.")
+    listed = run([tizen, "security-profiles", "list"], quiet=True)
+    if not re.search(r"(?m)^\s*" + re.escape(profile()) + r"\b", listed):
+        raise ToolError(f"The certificate exists but the signing profile '{profile()}' isn't registered.\n"
+                        "Run:  python tv.py cert --country XX  again (it keeps your certificate), then install.")
+    try:
+        run([tizen, "security-profiles", "set-active", "-n", profile()], quiet=True)
+    except ToolError as e:
+        print(f"(couldn't mark '{profile()}' active: {e}; continuing, the build names it directly)")
 
 
 def need_tizen():
@@ -203,6 +231,7 @@ def make_certificate(ip, country, new_tv=False):
 def build():
     tizen = need_tizen()
     result = os.path.join(LAUNCHER, ".buildResult")
+    need_signing(tizen)
     shutil.rmtree(result, ignore_errors=True)
     try:
         run([tizen, "build-web", "-e", ".*", "-e", "*.md", "-e", "wallpapers/manifest.json", "--", LAUNCHER])
