@@ -4,7 +4,7 @@ Samsung TVs don't let a computer change these settings (no API, and sdb on a
 retail TV has no access to them), and blind key sequences are unsafe: menus
 differ by model and year, and Factory Data Reset sits one item below Start
 Screen Options. So each step is done by hand with the remote while the script
-records the value before, the value after, and a photo of each.
+records the value before and after (and a webcam photo, if one is set up).
 
 Kept on purpose (you use them): screen mirroring / casting (SmartThings,
 AirPlay), and the Samsung TV Plus app itself. Nothing is uninstalled. Not
@@ -117,7 +117,7 @@ STEPS = [
             "Home > highlight a tile > hold OK (or press Down) > Remove. NOT \"Delete\".",
         ],
         "target": "Unused tiles removed",
-        "options": ["As in the Home-screen photo"],
+        "options": ["As it is now"],
         "phase": "debloat",
         "freeform_after": "Which tiles did you remove? (comma-separated, for the restore list)",
         "caution": "Use Remove, never Delete. Delete uninstalls the app.",

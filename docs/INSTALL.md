@@ -105,7 +105,7 @@ part tied to the TV, for a different TV.
 
 ```sh
 python tv.py apps        # check the dock app IDs; edit launcher/js/config.js if needed
-python tv.py install     # builds, installs, opens it, checks it's on screen, photo
+python tv.py install     # builds, installs, opens it, checks it's on screen
 python tv.py autostart   # pin it, Start with Smart Hub Home off, Autorun Last App on, power-on test
 ```
 

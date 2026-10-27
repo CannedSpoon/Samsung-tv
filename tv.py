@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Debloat a Samsung Tizen TV and set up Quiet Home, with a backup and a photo of every step.
+"""Debloat a Samsung Tizen TV and set up Quiet Home, backing up every setting first.
 
 Run these from a computer on the same Wi-Fi as the TV, in order:
 
   python3 tv.py find            find the TV on the network and remember it
   python3 tv.py pair            connect as a remote (choose Allow on the TV once)
-  python3 tv.py backup          record every setting as it is now, with photos (changes nothing)
+  python3 tv.py backup          record every setting as it is now (changes nothing)
   python3 tv.py debloat         turn off ads, tracking and junk, one step at a time, asking first
   python3 tv.py install         build Quiet Home, install it, check it opens (one-time setup: docs/INSTALL.md)
   python3 tv.py autostart       pin Quiet Home and make the TV start in it
@@ -17,22 +17,25 @@ Other commands:
   python3 tv.py info            model, firmware, Developer Mode status
   python3 tv.py apps            list installed apps and their IDs (for launcher/js/config.js)
   python3 tv.py key HOME RIGHT*2   press remote keys (NAME*N repeats)
-  python3 tv.py snap NAME       take a photo of the TV into the current backup
+  python3 tv.py snap NAME       file a photo of the TV into the current backup (optional)
   python3 tv.py status          what the latest backup has recorded and changed
   python3 tv.py restore --only dns     just put the DNS back (if the TV lost internet)
   python3 tv.py doctor          check this computer is ready to install Quiet Home
+  python3 tv.py camera          use a webcam to photograph the TV at each step (optional)
   python3 tv.py cert --country GB      make the free Samsung signing certificate for this TV
   python3 tv.py uninstall       remove Quiet Home
 
-Photos of the TV: Samsung TVs can't send screenshots over the network, so a camera
-pointed at the TV stands in. Set TV_CAMERA (see README.md) or run
-`python3 tools/phonecam.py serve` and open it on your phone; otherwise you're asked
-to take each photo with your phone yourself.
+Checking each step: you confirm what the TV shows, and the TV's own reports are
+checked where it gives them (Quiet Home installed, on screen, starting at power-on).
+No photos are needed. Optional: point a webcam at the TV and run `python3 tv.py camera`
+once, and each step is also photographed automatically (or TV_PHOTOS=ask asks
+for a phone photo at each step instead).
 """
 import argparse
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -169,33 +172,75 @@ class Session:
 # ---- photos of the TV ----------------------------------------------------------------
 
 PHONECAM_LATEST = os.path.join(HERE, "photos", "live", "latest.jpg")
+CAMERA_FILE = os.path.join(tv.STATE, "camera.json")
 
 
-def snap(session, name):
-    """Takes a photo of the TV into the session; returns its path, or a note."""
+def camera_setting():
+    """ffmpeg input as 'format:device': TV_CAMERA, else the one `tv.py camera` saved."""
+    return os.environ.get("TV_CAMERA") or (load_json(CAMERA_FILE) or {}).get("camera", "")
+
+
+def capture(camera, out):
+    """One frame from a webcam with ffmpeg; returns (ok, error text)."""
+    fmt, _, device = camera.partition(":")
+    cmd = ["ffmpeg", "-loglevel", "error", "-y", "-f", fmt]
+    if fmt == "avfoundation":
+        cmd += ["-framerate", "30"]
+    # Skip the first second so the camera's exposure settles.
+    cmd += ["-i", device, "-ss", "1", "-frames:v", "1", out]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    return p.returncode == 0 and os.path.exists(out), p.stderr.strip()[:300]
+
+
+def list_cameras():
+    """[(label, 'format:device')] for the webcams ffmpeg can see on this computer."""
+    if sys.platform.startswith("linux"):
+        import glob
+        return [(d, "v4l2:" + d) for d in sorted(glob.glob("/dev/video*"))]
+    if sys.platform == "darwin":
+        cmd, fmt = ["ffmpeg", "-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""], "avfoundation"
+    else:
+        cmd, fmt = ["ffmpeg", "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"], "dshow"
+    p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+    text = p.stderr
+    if fmt == "dshow":
+        # Lines like: [dshow @ 0000...] "Integrated Camera" (video)
+        names = re.findall(r'"([^"]+)"\s+\(video\)', text)
+        return [(n, "dshow:video=" + n) for n in dict.fromkeys(names)]
+    video = text.split("audio devices")[0]
+    return [(name, f"avfoundation:{idx}") for idx, name in re.findall(r"\[(\d+)\] (.+)", video)]
+
+
+def snap(session, name, ask_for_one=None):
+    """Takes a photo of the TV into the session when a camera is set up; returns its path or None.
+
+    No photos are needed: without a camera this returns None quietly, unless
+    ask_for_one (or TV_PHOTOS=ask) asks you to take one with your phone.
+    """
+    if ask_for_one is None:
+        ask_for_one = os.environ.get("TV_PHOTOS", "").lower() == "ask"
     count = len(os.listdir(os.path.join(session.path, "photos")))
     out = os.path.join(session.path, "photos", f"{count + 1:02d}-{name}.jpg")
-    camera = os.environ.get("TV_CAMERA", "")
+    camera = camera_setting()
     if camera:
-        fmt, _, device = camera.partition(":")
-        cmd = ["ffmpeg", "-loglevel", "error", "-y", "-f", fmt]
-        if fmt == "avfoundation":
-            cmd += ["-framerate", "30"]
-        # Skip the first second so the camera's exposure settles.
-        cmd += ["-i", device, "-ss", "1", "-frames:v", "1", out]
         time.sleep(1.2)  # let the TV finish animating
-        p = subprocess.run(cmd, capture_output=True, text=True)
-        if p.returncode == 0 and os.path.exists(out):
+        ok, err = capture(camera, out)
+        if ok:
             say(f"  photo: {os.path.relpath(out, HERE)}")
             session.log(photo=out, source="camera")
             return out
-        say(f"  camera failed ({p.stderr.strip()[:200]}); falling back to a phone photo.")
+        say(f"  camera failed ({err}); no photo this time.")
     elif os.path.exists(PHONECAM_LATEST) and time.time() - os.path.getmtime(PHONECAM_LATEST) < 10:
         p = subprocess.run([sys.executable, os.path.join(HERE, "tools", "phonecam.py"), "snap", out])
         if p.returncode == 0 and os.path.exists(out):
             say(f"  photo: {os.path.relpath(out, HERE)}")
             session.log(photo=out, source="phonecam")
             return out
+    if not ask_for_one:
+        return None
     answer = ask("  Take a photo of the TV with your phone now. Then press Enter, "
                  "or drag the photo file here and press Enter to file it:").strip("'\" ")
     if answer and os.path.isfile(answer):
@@ -205,7 +250,7 @@ def snap(session, name):
         session.log(photo=out, source="file")
         return out
     session.log(photo=None, name=name, source="phone, not filed")
-    return "taken on phone (not filed)"
+    return None
 
 
 def show_step(step):
@@ -339,9 +384,44 @@ def cmd_apps(args):
         say(text)
 
 
+def cmd_camera(args):
+    """Pick the webcam that photographs the TV at each step, test it, remember it."""
+    if args.off:
+        if os.path.exists(CAMERA_FILE):
+            os.remove(CAMERA_FILE)
+        say("Webcam photos are off.")
+        return
+    if not shutil.which("ffmpeg"):
+        die("ffmpeg is needed for webcam photos. Install it, then run this again:\n"
+            "  Windows:  winget install Gyan.FFmpeg   (then open a new PowerShell window)\n"
+            "  macOS:    brew install ffmpeg\n"
+            "  Linux:    sudo apt install ffmpeg")
+    cameras = list_cameras()
+    if not cameras:
+        die("ffmpeg found no webcam. Is it plugged in, and not in use by another app (Teams, Zoom, Camera)?")
+    if len(cameras) == 1:
+        label, camera = cameras[0]
+    else:
+        labels = [c[0] for c in cameras]
+        answer = choose("Which webcam points at the TV?", labels)
+        label, camera = cameras[labels.index(answer)] if answer in labels else cameras[0]
+    os.makedirs(tv.STATE, exist_ok=True)
+    test = os.path.join(tv.STATE, "camera-test.jpg")
+    say(f"Taking a test photo with {label}...")
+    ok, err = capture(camera, test)
+    if not ok:
+        die(f"The test photo failed: {err}\nClose any app using the webcam and try again.")
+    save_json(CAMERA_FILE, {"camera": camera, "label": label, "saved": now()})
+    say(f"Saved. Test photo: {os.path.relpath(test, HERE)} - open it and check the TV is in view.")
+    say("From now on each step is photographed automatically into the backup folder.")
+    say("Turn it off with:  python3 tv.py camera --off")
+
+
 def cmd_snap(args):
     session = Session.latest()
-    snap(session, args.name)
+    out = snap(session, args.name, ask_for_one=True)
+    if not out:
+        say("No photo filed.")
 
 
 def cmd_backup(args):
@@ -369,7 +449,7 @@ def cmd_backup(args):
         session.write("apps.txt", text)
         say(f"  saved apps.txt (via {source})")
     else:
-        say("  app list not available yet (needs Developer Mode + sdb); the Home-row photo is the record.")
+        say("  app list not available yet (needs Developer Mode + sdb); it's read again at install time.")
     ok, duid = tv.sdb(ip, "shell", "0", "getduid")
     if ok:
         session.write("duid.txt", duid + "\n")
@@ -377,13 +457,12 @@ def cmd_backup(args):
         say(f"  device ID (DUID): {duid.strip()}")
 
     if "home_photo" not in session.data:
-        say("\nFirst, a photo of the Home screen as it is now.")
         open_keys(ip, {"id": "home", "open": ["HOME"]}, session)
         session.data["home_photo"] = snap(session, "home-before")
         session.save()
 
     say("\nNow each setting, as it is today. Nothing is changed: open the screen with your remote, "
-        "tell me what it shows, and take a photo. Press Ctrl-C any time; rerun to continue.")
+        "tell me what it shows. Press Ctrl-C any time; rerun to continue.")
     for step in STEPS:
         rec = session.step(step["id"])
         if "before" in rec and not args.redo:
@@ -495,7 +574,7 @@ def cmd_install(args):
     session.save()
     session.log(install=LAUNCHER_ID, visible=ok)
     say("Quiet Home is installed and on screen. Press Left/Right on the remote and open an app to try it."
-        if ok else "Installed, but the TV doesn't report it on screen. Check the photo / the TV.")
+        if ok else "Installed, but the TV doesn't report it on screen. Look at the TV, or open it from Apps.")
 
 
 def uninstall_launcher(ip):
@@ -540,7 +619,7 @@ def cmd_doctor(args):
         ("Samsung certificate tool", tizen.skills_dir(), os.path.isdir(tizen.skills_dir())),
         ("Signing profile '" + tizen.profile() + "'", tizen.cert_dir(),
          os.path.exists(os.path.join(tizen.cert_dir(), "distributor.p12"))),
-        ("Camera for photos (TV_CAMERA)", os.environ.get("TV_CAMERA") or "not set: you'll take photos by phone", True),
+        ("Webcam photos (optional)", camera_setting() or "off: no photos (not needed)", True),
     ]
     saved = load_json(TV_FILE)
     if saved:
@@ -562,7 +641,7 @@ def restore_text(step, rec):
     sid, before = step["id"], rec.get("before")
     if sid == "home_row":
         return ("Add these tiles back: Home > Apps > App Settings > the app > Add to Home:\n  "
-                + (rec.get("detail") or "(see the before photo)"))
+                + (rec.get("detail") or "(none recorded)"))
     if sid == "pin_launcher":
         return "Home > highlight Quiet Home > hold OK > Remove (from the Home row only)."
     if sid == "dns":
@@ -584,7 +663,8 @@ def cmd_restore(args):
     for step in todo:
         rec = session.step(step["id"])
         show_step(step)
-        say(f"Backed-up value: {rec.get('before')}   (photo: {rec.get('before_photo', 'none')})")
+        say(f"Backed-up value: {rec.get('before')}"
+            + (f"   (photo: {rec['before_photo']})" if rec.get("before_photo") else ""))
         say("UNDO: " + restore_text(step, rec))
         if not yes("Undo this one now?", default=True):
             continue
@@ -650,6 +730,8 @@ def main():
     sub.add_parser("install")
     sub.add_parser("uninstall")
     sub.add_parser("doctor")
+    p = sub.add_parser("camera")
+    p.add_argument("--off", action="store_true", help="stop taking webcam photos")
     p = sub.add_parser("cert")
     p.add_argument("--country", required=True, help="your 2-letter country code, e.g. GB or US")
     p.add_argument("--new-tv", action="store_true", help="remake the distributor certificate for another TV")

@@ -3,7 +3,7 @@
 Make a slow, ad-filled Samsung (Tizen) TV quiet again, with a way back:
 
 1. **Find** the TV on your Wi-Fi and connect as a remote.
-2. **Back up** every setting this touches, with a photo of each, before anything changes.
+2. **Back up** every setting this touches before anything changes.
 3. **Debloat**: turn off content recognition, ad targeting, voice uploads, promo
    pop-ups, autoplaying trailers and the TV Plus autostart, tidy the Home row, and
    block ad/tracker servers with DNS. You're asked before each change, and
@@ -49,7 +49,7 @@ python tv.py autostart   # pin it and make the TV start in it
 
 Everything is saved as it goes in `backups/<date>/`: `session.json` (each
 setting's before/after value), `device.json`, `apps.txt`, `duid.txt`, `log.jsonl`
-(every key press and step) and `photos/`. Press Ctrl-C at any point and rerun
+(every key press and step) and, if a webcam is set up, `photos/`. Press Ctrl-C at any point and rerun
 to continue. Copy the backup folder somewhere safe.
 
 **If the TV loses internet after the DNS step** but your other devices don't:
@@ -69,22 +69,28 @@ waits while you make the change with the remote, then records the result.
 Not included because they can't be undone: Reset PSID (advertising ID),
 declining Smart Hub terms (that disables every app), Reset Smart Hub.
 
-## Photos of the TV
+## Checking each step (no photos needed)
 
-Samsung TVs can't send screenshots over the network, so every step is checked
-with a photo of the screen instead. Any one of these works:
+Each change ends with you confirming what the TV now shows, and `tv.py` checks
+the TV's own reports where it gives them: Quiet Home installed, on screen, and
+starting at power-on. Samsung TVs can't send screenshots over the network, so
+photos are an optional extra record:
 
-- **A camera on this computer**, pointed at the TV (e.g. an iPhone as a
-  Continuity Camera on a Mac). Set `TV_CAMERA`, and `ffmpeg` takes each photo:
-  `TV_CAMERA=avfoundation:0` (Mac), `TV_CAMERA=v4l2:/dev/video0` (Linux),
-  `$env:TV_CAMERA="dshow:video=<camera name>"` (Windows PowerShell). List
-  cameras with `ffmpeg -f avfoundation -list_devices true -i ""` (Mac) or
-  `ffmpeg -list_devices true -f dshow -i dummy` (Windows).
+- **A webcam pointed at the TV** (the easiest): install
+  [ffmpeg](https://ffmpeg.org/) (Windows: `winget install Gyan.FFmpeg`, then a
+  new PowerShell window; macOS: `brew install ffmpeg`; Linux: `sudo apt install
+  ffmpeg`), point the webcam at the TV, and run once:
+  ```sh
+  python tv.py camera        # finds the webcam, takes a test photo, remembers it
+  ```
+  Open `state/camera-test.jpg` to check the TV is in view. From then on every
+  step is photographed into the backup folder by itself. `python tv.py camera
+  --off` stops it. Close Teams/Zoom/Camera first: only one app can use a webcam.
 - **Your phone as a live camera**: `python tools/phonecam.py serve`, open the
-  printed address on the phone, aim it at the TV. Stop it (Ctrl-C) afterwards.
-  Needs `openssl` (built into macOS/Linux; on Windows it comes with Git, in
-  `C:\Program Files\Git\usr\bin`, which must be on PATH).
-- **Neither**: you're asked to take each photo yourself and can drag the file in.
+  printed address on the phone, aim it at the TV. Needs `openssl` (built into
+  macOS/Linux; on Windows it comes with Git, in `C:\Program Files\Git\usr\bin`,
+  which must be on PATH).
+- **Phone photos by hand**: set `TV_PHOTOS=ask` and you're asked at each step.
 
 ## Quiet Home
 
