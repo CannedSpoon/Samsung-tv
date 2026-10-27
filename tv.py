@@ -709,19 +709,63 @@ MODERN_JS = [
 ]
 
 
-def scan_scripts(page_url, html, ua):
+TV_UA = ("Mozilla/5.0 (SMART-TV; Linux; Tizen 5.5) AppleWebKit/537.36 (KHTML, like Gecko) "
+         "Version/5.5 TV Safari/537.36")
+
+
+def http_get(url, via=None, limit=4_000_000, timeout=10):
+    """GET with a TV user agent, following redirects. `via` = {hostname: ip} connects
+    those hosts to that address (the one the TV's DNS gives), not this computer's DNS.
+    Returns (status, final url, headers, text)."""
+    import http.client
+    import socket
+    import ssl
+    for _ in range(6):
+        u = urllib.parse.urlsplit(url)
+        host, port = u.hostname, u.port or (443 if u.scheme == "https" else 80)
+        ip = (via or {}).get(host, host)
+        if u.scheme == "https":
+            ctx = ssl.create_default_context()
+
+            class Conn(http.client.HTTPSConnection):
+                def connect(self):
+                    sock = socket.create_connection((ip, port), self.timeout)
+                    self.sock = ctx.wrap_socket(sock, server_hostname=host)   # the real name, for TLS and SNI
+            conn = Conn(host, port, timeout=timeout, context=ctx)
+        else:
+            conn = http.client.HTTPConnection(ip, port, timeout=timeout)
+        path = (u.path or "/") + ("?" + u.query if u.query else "")
+        conn.request("GET", path, headers={"Host": u.netloc, "User-Agent": TV_UA, "Accept": "*/*"})
+        r = conn.getresponse()
+        headers = {k.lower(): v for k, v in r.getheaders()}
+        if r.status in (301, 302, 303, 307, 308) and headers.get("location"):
+            url = urllib.parse.urljoin(url, headers["location"])
+            conn.close()
+            continue
+        body = r.read(limit).decode("utf-8", errors="replace")
+        conn.close()
+        return r.status, url, headers, body
+    raise OSError("too many redirects")
+
+
+def scan_scripts(page_url, html, via):
     """Downloads the page's scripts and reports the newest syntax they use: [(feature, chrome, script)]."""
     srcs = re.findall(r"<script[^>]*\ssrc=[\"']([^\"']+)", html, re.I)
     inline = re.findall(r"<script(?![^>]*\ssrc=)[^>]*>(.*?)</script>", html, re.I | re.S)
     found = {}
     sources = [("inline", "\n".join(inline))]
-    for src in srcs[:10]:
+    for n, src in enumerate(srcs[:10], 1):
         url = urllib.parse.urljoin(page_url, src)
+        name = url.split("?")[0].rsplit("/", 1)[-1][:40] or url
+        print(f"  Downloading script {n}/{min(len(srcs), 10)}:  {name}", end="\r", flush=True)
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": ua}), timeout=20) as r:
-                sources.append((url.rsplit("/", 1)[-1][:40] or url, r.read(4_000_000).decode("utf-8", errors="replace")))
-        except OSError:
+            status, _, _, code = http_get(url, via)
+            if status == 200:
+                sources.append((name, code))
+        except (OSError, ValueError):
             continue
+    if srcs:
+        print(" " * 78, end="\r", flush=True)
     for name, code in sources:
         code = re.sub(r"(['\"`])(?:\\.|(?!\1).){0,200}\1", "\"\"", code)   # drop string literals
         for feature, pattern, chrome in MODERN_JS:
@@ -751,24 +795,25 @@ def cmd_check_site(args):
     status = None
     modern = []
     if normal or public_ips:
+        # Load it the way the TV would: through the address the TV's DNS gives.
+        tv_ips = [ip for ip in filt_ips if ip not in ("0.0.0.0", "127.0.0.1")] or public_ips
+        via = {host: tv_ips[0]} if tv_ips else None
+        if tv_ips and normal and not set(normal) & set(tv_ips + public_ips):
+            say(f"  (This computer's DNS gives a different address than the TV gets; loading it via {tv_ips[0]}.)")
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 5.5) "
-                                                       "AppleWebKit/537.36 (KHTML, like Gecko) Version/5.5 TV Safari/537.36"})
-            with urllib.request.urlopen(req, timeout=15) as r:
-                status, final, ctype = r.status, r.geturl(), r.headers.get("Content-Type", "")
-                body = r.read(400000).decode("utf-8", errors="replace")
-                frame = r.headers.get("X-Frame-Options") or ""
-        except urllib.error.HTTPError as e:
-            status, final, ctype, body, frame = e.code, url, e.headers.get("Content-Type", ""), "", ""
-        except OSError as e:
+            status, final, headers, body = http_get(url, via, limit=400000, timeout=15)
+            ctype = headers.get("content-type", "")
+        except (OSError, ValueError) as e:
             say(f"  Opening it:                failed ({e})")
         if status:
-            say(f"  Opening it:                HTTP {status}, {ctype or 'unknown type'}"
+            title = re.search(r"<title[^>]*>(.*?)</title>", body or "", re.I | re.S)
+            say(f"  Opening it:                HTTP {status}, {ctype or 'unknown type'}, {len(body or '') // 1024} KB"
                 + (f", redirected to {final}" if final.rstrip('/') != url.rstrip('/') else ""))
+            if title:
+                say(f"  Page title:                {' '.join(title.group(1).split())[:70]}")
             if re.search(r"cf-chl|challenge-platform|Just a moment", body or ""):
                 say("                             (a Cloudflare 'checking your browser' page: older TV engines often fail it)")
-            ua = req.get_header("User-agent")
-            modern, fetched = scan_scripts(final, body or "", ua) if body else ([], 0)
+            modern, fetched = scan_scripts(final, body or "", via) if body else ([], 0)
             if modern:
                 say(f"  Its JavaScript ({fetched} script file{'s' if fetched != 1 else ''} checked) uses:")
                 for feature, chrome, name in modern:
