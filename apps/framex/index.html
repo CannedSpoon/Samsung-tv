@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920, height=1080">
+  <title>FrameX TV</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0e0f13; color: #fff;
+      font-family: "SamsungOne", "Helvetica Neue", Arial, sans-serif; cursor: none; }
+    #box { position: absolute; top: 50%; left: 50%; width: 1200px; margin: -170px 0 0 -600px; text-align: center; }
+    h1 { margin: 0; font-size: 110px; font-weight: 800; letter-spacing: -3px; }
+    p { margin: 24px 0 0; font-size: 34px; opacity: .75; }
+    #help { font-size: 26px; opacity: .55; }
+    .dots::after { content: ""; animation: dots 1.4s steps(4) infinite; }
+    @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+  </style>
+</head>
+<body>
+  <div id="box">
+    <h1>FrameX TV</h1>
+    <p id="status" class="dots">Opening framextv.cc</p>
+    <p id="help">Press Exit or Home on the remote to leave.</p>
+  </div>
+  <script>
+    /*
+     * A short splash, then the site full screen in this app. If the TV is
+     * offline, say so instead of opening a blank page; OK retries, Back leaves.
+     */
+    (function () {
+      'use strict';
+      var URL = 'https://framextv.cc/';
+      var status = document.getElementById('status');
+
+      function leave() {
+        try { tizen.application.getCurrentApplication().exit(); } catch (e) { window.close(); }
+      }
+
+      function go() {
+        if (navigator.onLine === false) {
+          status.className = '';
+          status.textContent = 'The TV is offline. Check its internet connection, then press OK to try again.';
+          return;
+        }
+        status.className = 'dots';
+        status.textContent = 'Opening framextv.cc';
+        setTimeout(function () { location.replace(URL); }, 600);
+      }
+
+      document.addEventListener('keydown', function (e) {
+        if (e.keyCode === 10009 || e.keyCode === 27 || e.keyCode === 8) { e.preventDefault(); leave(); }
+        else if (e.keyCode === 13) go();
+      });
+      go();
+    }());
+  </script>
+</body>
+</html>

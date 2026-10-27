@@ -109,6 +109,12 @@ python tv.py install     # builds, installs, opens it, checks it's on screen
 python tv.py autostart   # pin it, Start with Smart Hub Home off, Autorun Last App on, power-on test
 ```
 
+The FrameX TV app installs the same way, any time Developer Mode is on:
+
+```sh
+python tv.py install framex
+```
+
 Optional, before `install` (or run `install` again afterwards):
 
 ```sh

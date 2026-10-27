@@ -25,14 +25,16 @@
         ids: [], names: ['^stremio$', '\\bstremio\\b'] },
       { label: 'TV Plus', color: '#13202e', accent: '#00c2ff',
         ids: ['com.samsung.tv.tvplus', 'com.samsung.tv.tvPlusDeeplinker'],
-        names: ['^samsung tv plus$', '^tv plus$'] }
+        names: ['^samsung tv plus$', '^tv plus$'] },
+      // The full-screen FrameX TV app in apps/framex: python tv.py install framex
+      { label: 'FrameX TV', color: '#1b1d24', accent: '#9b85ff',
+        ids: ['FrameXTV01.App'], names: ['^framex tv$'] }
     ],
 
     // Website tiles, after the apps. They open in the TV's own browser
-    // ("Internet"), which handles the remote's pointer and video best.
-    sites: [
-      { label: 'FrameX TV', url: 'https://framextv.cc/', color: '#16181d', accent: '#e8e8ea' }
-    ],
+    // ("Internet"), which handles the remote's pointer and video best. E.g.
+    //   { label: 'BOM radar', url: 'https://www.bom.gov.au/', color: '#16181d', accent: '#e8e8ea' }
+    sites: [],
 
     // Always last in the dock: Samsung's own home screen, which is the way back
     // to the TV's settings and sources. Don't remove it.

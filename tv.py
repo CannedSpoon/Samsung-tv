@@ -26,7 +26,8 @@ Other commands:
   python3 tv.py weather "Town"  show the weather on Quiet Home (then install again)
   python3 tv.py hdmi 1 "Xbox"   name an HDMI tile (then install again)
   python3 tv.py cert --country GB      make the free Samsung signing certificate for this TV
-  python3 tv.py uninstall       remove Quiet Home
+  python3 tv.py install framex  build and install the FrameX TV app (framextv.cc, full screen)
+  python3 tv.py uninstall [framex]     remove Quiet Home (or the FrameX TV app)
 
 Checking each step: you confirm what the TV shows, and the TV's own reports are
 checked where it gives them (Quiet Home installed, on screen, starting at power-on).
@@ -656,52 +657,62 @@ def cmd_hdmi(args):
 def cmd_install(args):
     ip = the_tv()
     session = Session.latest()
-    prepare_launcher()
+    app = tizen.APPS[args.app]
+    if args.app == "quiethome":
+        prepare_launcher()
     try:
-        say("\n--- Building Quiet Home")
-        tizen.build()
+        say(f"\n--- Building {app.name}")
+        tizen.build(app)
         say("\n--- Installing it on the TV")
-        tizen.install(ip)
+        tizen.install(ip, app)
     except (tizen.ToolError, OSError, subprocess.SubprocessError) as e:
         die(f"\n{e}\n\nThat step failed; see docs/INSTALL.md (Troubleshooting).")
-    say("\nChecking that Quiet Home is open on the TV...")
+    say(f"\nChecking that {app.name} is open on the TV...")
     status = None
     for _ in range(20):
-        status = tv.app_status(ip, LAUNCHER_ID)
+        status = tv.app_status(ip, app.app_id)
         if status and status.get("visible"):
             break
         time.sleep(1)
-    snap(session, "launcher-installed")
+    snap(session, f"{args.app}-installed")
     ok = bool(status and status.get("visible"))
-    session.data["launcher"] = {"installed": now(), "visible": ok}
+    session.data.setdefault("apps", {})[args.app] = {"installed": now(), "visible": ok}
+    if args.app == "quiethome":
+        session.data["launcher"] = {"installed": now(), "visible": ok}
     session.save()
-    session.log(install=LAUNCHER_ID, visible=ok)
-    say("Quiet Home is installed and on screen. Press Left/Right on the remote and open an app to try it."
-        if ok else "Installed, but the TV doesn't report it on screen. Look at the TV, or open it from Apps.")
+    session.log(install=app.app_id, visible=ok)
+    if not ok:
+        say("Installed, but the TV doesn't report it on screen. Look at the TV, or open it from Apps.")
+    elif args.app == "quiethome":
+        say("Quiet Home is installed and on screen. Press Left/Right on the remote and open an app to try it.")
+    else:
+        say(f"{app.name} is installed and on screen. It's also in Quiet Home's dock (reinstall Quiet Home "
+            "if the tile isn't there yet). Press Exit or Home on the remote to leave it.")
 
 
-def uninstall_launcher(ip):
+def remove_app(ip, session, key):
+    """Uninstalls one of this project's apps, by Developer Mode or by hand; True if it's gone."""
+    app = tizen.APPS[key]
     try:
-        tizen.uninstall(ip)
-        return True
+        tizen.uninstall(ip, app)
     except (tizen.ToolError, OSError, subprocess.SubprocessError) as e:
         say(f"Couldn't uninstall from here: {e}")
-        return False
+        say(f"On the TV instead: Apps > App Settings (gear) > {app.name} > Delete.")
+        ask("Press Enter when done:")
+    gone = tv.app_status(ip, app.app_id) is None
+    snap(session, f"{key}-removed")
+    session.log(uninstall=app.app_id, gone=gone)
+    say(f"{app.name} is removed." if gone else f"The TV still lists {app.name}.")
+    return gone
 
 
 def cmd_uninstall(args):
     ip = the_tv()
     session = Session.latest()
-    if tv.app_status(ip, LAUNCHER_ID) is None:
-        say("Quiet Home isn't installed.")
+    if tv.app_status(ip, tizen.APPS[args.app].app_id) is None:
+        say(f"{tizen.APPS[args.app].name} isn't installed.")
         return
-    if not uninstall_launcher(ip):
-        say("On the TV instead: Apps > App Settings (gear) > Quiet Home > Delete.")
-        ask("Press Enter when done:")
-    gone = tv.app_status(ip, LAUNCHER_ID) is None
-    snap(session, "launcher-removed")
-    session.log(uninstall=LAUNCHER_ID, gone=gone)
-    say("Quiet Home is removed." if gone else "The TV still lists Quiet Home.")
+    remove_app(ip, session, args.app)
 
 
 def cmd_cert(args):
@@ -781,14 +792,9 @@ def cmd_restore(args):
             session.save()
             session.log(step=step["id"], restored=rec.get("before"))
 
-    if not args.only and tv.app_status(ip, LAUNCHER_ID) is not None and yes("\nUninstall Quiet Home too?"):
-        if not uninstall_launcher(ip):
-            say("Couldn't uninstall from here. On the TV: Apps > App Settings (gear) > Quiet Home > Delete.")
-            ask("Press Enter when done:")
-        gone = tv.app_status(ip, LAUNCHER_ID) is None
-        snap(session, "launcher-removed")
-        session.log(uninstall=LAUNCHER_ID, gone=gone)
-        say("Quiet Home is removed." if gone else "The TV still lists Quiet Home.")
+    for key, app in tizen.APPS.items():
+        if not args.only and tv.app_status(ip, app.app_id) is not None and yes(f"\nUninstall {app.name} too?"):
+            remove_app(ip, session, key)
     open_keys(ip, {"id": "exit", "open": ["EXIT"]}, session)
     cmd_status(args)
     say("Developer Mode: if you turned it on, turn it off again (Apps > App Settings > 1 2 3 4 5 > Off, "
@@ -835,8 +841,10 @@ def main():
     for name in ("debloat", "autostart", "restore"):
         p = sub.add_parser(name)
         p.add_argument("--only", nargs="+", metavar="STEP", help="only these step ids (see tv.py status)")
-    sub.add_parser("install")
-    sub.add_parser("uninstall")
+    for name in ("install", "uninstall"):
+        p = sub.add_parser(name)
+        p.add_argument("app", nargs="?", default="quiethome", choices=sorted(tizen.APPS),
+                       help="which app (default: quiethome)")
     sub.add_parser("doctor")
     p = sub.add_parser("weather")
     p.add_argument("place", nargs="?", help='your town, e.g. "Melbourne"')

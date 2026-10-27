@@ -22,6 +22,7 @@
     { id: 'MCmYXNxgcu.DisneyPlus', name: 'Disney+' },
     { id: 'Stremio0001.Stremio', name: 'Stremio' },
     { id: 'com.samsung.tv.tvplus', name: 'Samsung TV Plus' },
+    { id: 'FrameXTV01.App', name: 'FrameX TV' },
     { id: 'com.samsung.tv.csfs', name: 'Smart Hub' }
   ];
 

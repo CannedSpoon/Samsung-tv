@@ -14,6 +14,7 @@
     { key: 'primevideo', match: /prime ?video|primevideo|ignition/i, mark: 'primevideo',
       bg: 'linear-gradient(135deg,#0b2f4f,#1a98ff)', glow: '#1a98ff', size: 78 },
     { key: 'stremio', match: /stremio/i, mark: 'stremio', bg: 'linear-gradient(135deg,#2d2470,#7b5cf0)', glow: '#8f76ff', size: 52 },
+    { key: 'framex', match: /framex/i, text: 'FrameX', bg: 'linear-gradient(135deg,#1b1d24,#3a2a6e)', glow: '#9b85ff' },
     { key: 'tvplus', match: /tv ?plus|tvplus/i, text: 'TV Plus', bg: 'linear-gradient(135deg,#071a3d,#1c5fd6)', glow: '#3b8bff' },
     { key: 'smarthub', match: /csfs|smart hub/i, mark: 'samsung', bg: 'linear-gradient(135deg,#0d1c73,#1428a0)', glow: '#3c5cff', size: 92 },
     { key: 'playstation', match: /playstation|\bps[345]\b/i, mark: 'playstation', bg: 'linear-gradient(135deg,#00205c,#0070d1)', glow: '#2b8cff', size: 56 },

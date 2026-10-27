@@ -97,11 +97,11 @@ photos are an optional extra record:
 ![The + panel: add photos and shortcuts from your phone](docs/screenshots/panel.png)
 
 **The dock**, in this order until you move things:
-- **Your apps:** YouTube, Prime Video, Stremio and Samsung TV Plus. Apps that
-  aren't installed are left out; if an app has more than one ID on Samsung TVs,
-  each is tried until one opens.
-- **Website tiles** from `sites` in `launcher/js/config.js` (FrameX TV for now),
-  opened in Samsung's own browser.
+- **Your apps:** YouTube, Prime Video, Stremio, Samsung TV Plus and FrameX TV.
+  Apps that aren't installed are left out; if an app has more than one ID on
+  Samsung TVs, each is tried until one opens.
+- **Website tiles** from `sites` in `launcher/js/config.js`, opened in
+  Samsung's own browser (none by default).
 - **HDMI inputs** with something plugged in. Name them with
   `python tv.py hdmi 1 "PlayStation 5"`; otherwise they show as "HDMI 1".
 - **Shortcuts you add from your phone:** YouTube videos and websites.
@@ -158,6 +158,24 @@ off from Quiet Home, and Samsung's Home has it as the first tile.
 <http://localhost:8080> and use the arrow keys. `node dev/run-website.js` also
 runs the photo website locally (after `python tv.py install` has made
 `launcher/js/local-key.js`). To add bundled photos, see `dev/wallpapers.py`.
+
+## FrameX TV app
+
+A separate TV app (`apps/framex/`) that opens <https://framextv.cc/> full
+screen. Install it with `python tv.py install framex` (Developer Mode on, same
+certificate as Quiet Home); it then has its own tile in Quiet Home's dock and in
+Samsung's Apps list. Remove it with `python tv.py uninstall framex` (restore
+offers this too).
+
+- It shows a short "Opening framextv.cc" screen, then the site fills the
+  screen inside the app (not Samsung's browser). If the TV is offline it says
+  so: OK retries, Back leaves.
+- The remote works the site only as far as the site supports arrow keys and OK.
+  A site built for a mouse is easier in Samsung's browser, which has a pointer:
+  add it as a website tile instead (`sites` in config.js, or + from your phone).
+- Leave it with **Exit** or **Home** on the remote.
+- If it opens but shows nothing, the ad-blocking DNS may be blocking the site:
+  try `python tv.py restore --only dns`.
 
 ## Credits
 

@@ -24,6 +24,18 @@ DIST = os.path.join(ROOT, "dist")
 WGT = "QuietHome.wgt"
 APP_ID = "QuietHome1.Home"
 PKG_ID = "QuietHome1"
+
+
+class App:
+    def __init__(self, name, src, wgt, app_id, pkg_id, excludes=()):
+        self.name, self.src, self.wgt, self.app_id, self.pkg_id, self.excludes = name, src, wgt, app_id, pkg_id, excludes
+
+
+# The TV apps this project builds; `python tv.py install <key>`.
+APPS = {
+    "quiethome": App("Quiet Home", LAUNCHER, WGT, APP_ID, PKG_ID, ("wallpapers/manifest.json",)),
+    "framex": App("FrameX TV", os.path.join(ROOT, "apps", "framex"), "FrameXTV.wgt", "FrameXTV01.App", "FrameXTV01"),
+}
 WINDOWS = os.name == "nt"
 HOME = os.path.expanduser("~")
 SECRETS = os.path.join(HOME, ".quiet-home-secrets")
@@ -260,37 +272,38 @@ def make_certificate(ip, country, new_tv=False):
 
 # ---- build / install -----------------------------------------------------------
 
-def build():
+def build(app=APPS["quiethome"]):
     tizen = need_tizen()
-    result = os.path.join(LAUNCHER, ".buildResult")
+    result = os.path.join(app.src, ".buildResult")
     need_signing(tizen)
     shutil.rmtree(result, ignore_errors=True)
     try:
-        run([tizen, "build-web", "-e", ".*", "-e", "*.md", "-e", "wallpapers/manifest.json", "--", LAUNCHER])
+        excludes = [a for pattern in (".*", "*.md") + tuple(app.excludes) for a in ("-e", pattern)]
+        run([tizen, "build-web"] + excludes + ["--", app.src])
         run([tizen, "package", "-t", "wgt", "-s", profile(), "--", result])
         wgts = sorted((os.path.join(result, f) for f in os.listdir(result) if f.endswith(".wgt")),
                       key=os.path.getmtime)
         if not wgts:
             raise ToolError("tizen package made no .wgt (is the signing profile set up? python tv.py cert)")
         os.makedirs(DIST, exist_ok=True)
-        shutil.copy2(wgts[-1], os.path.join(DIST, WGT))
+        shutil.copy2(wgts[-1], os.path.join(DIST, app.wgt))
     finally:
         shutil.rmtree(result, ignore_errors=True)
-    print(f"Built dist/{WGT}")
+    print(f"Built dist/{app.wgt}")
 
 
-def install(ip):
+def install(ip, app=APPS["quiethome"]):
     tizen = need_tizen()
-    if not os.path.exists(os.path.join(DIST, WGT)):
-        raise ToolError("Nothing to install yet; the build step makes dist/" + WGT)
+    if not os.path.exists(os.path.join(DIST, app.wgt)):
+        raise ToolError("Nothing to install yet; the build step makes dist/" + app.wgt)
     target = connect(ip)
     run([tizen, "install-permit", "-s", target])
-    run([tizen, "install", "-s", target, "-n", WGT, "--", DIST])
-    run([tizen, "run", "-s", target, "-p", APP_ID])
+    run([tizen, "install", "-s", target, "-n", app.wgt, "--", DIST])
+    run([tizen, "run", "-s", target, "-p", app.app_id])
 
 
-def uninstall(ip):
-    run([need_tizen(), "uninstall", "-s", connect(ip), "-p", PKG_ID])
+def uninstall(ip, app=APPS["quiethome"]):
+    run([need_tizen(), "uninstall", "-s", connect(ip), "-p", app.pkg_id])
 
 
 if __name__ == "__main__":
