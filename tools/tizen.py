@@ -303,7 +303,13 @@ def install(ip, app=APPS["quiethome"]):
 
 
 def uninstall(ip, app=APPS["quiethome"]):
-    run([need_tizen(), "uninstall", "-s", connect(ip), "-p", app.pkg_id])
+    # Samsung's tool takes the package ID on some TVs and the app ID on others
+    # (a 2020 TV answered "The package is not exist" to the package ID).
+    tizen, target = need_tizen(), connect(ip)
+    try:
+        run([tizen, "uninstall", "-s", target, "-p", app.pkg_id])
+    except ToolError:
+        run([tizen, "uninstall", "-s", target, "-p", app.app_id])
 
 
 if __name__ == "__main__":
