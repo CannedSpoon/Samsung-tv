@@ -12,7 +12,7 @@
   Arn0, the form tested on TVs; the code reaches nothing else.
 -->
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://quiet-home.local/app" version="1.1.0" viewmodes="maximized">
+        id="http://quiet-home.local/app" version="1.2.0" viewmodes="maximized">
     <tizen:application id="QuietHome1.Home" package="QuietHome1" required_version="3.0"/>
     <name>Quiet Home</name>
     <description>A dock of your apps and inputs over rotating nature photos. No ads, no tracking.</description>

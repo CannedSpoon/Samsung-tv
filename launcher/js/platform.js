@@ -58,12 +58,23 @@
         return !!info;
       });
     });
-    var needsList = found.some(function (ids, i) { return !ids.length && defs[i].names.length; });
+    var needsList = found.some(function (ids, i) { return (!ids.length || defs[i].searchAll) && defs[i].names.length; });
     return (needsList ? allApps() : Promise.resolve([])).then(function (list) {
       var taken = {};
       found.forEach(function (ids) { ids.forEach(function (id) { taken[id] = true; }); });
       var apps = list.filter(function (a) { return a && a.id && a.show !== false; });
       defs.forEach(function (def, i) {
+        // searchAll: also try every installed app whose name matches, after the
+        // listed ids (for apps whose id differs between TV models and years).
+        if (def.searchAll) {
+          apps.forEach(function (a) {
+            var hit = def.names.some(function (n) { return new RegExp(n).test(norm(a.name)); });
+            if (hit && found[i].indexOf(a.id) < 0) {
+              found[i].push(a.id);
+              if (!icons[i]) icons[i] = a.iconPath || null;
+            }
+          });
+        }
         for (var p = 0; p < def.names.length && !found[i].length; p++) {
           var re = new RegExp(def.names[p]);
           for (var j = 0; j < apps.length; j++) {
@@ -77,6 +88,10 @@
       });
       var out = [];
       defs.forEach(function (def, i) {
+        // fallback: tried last, and only when the app itself was found.
+        if (found[i].length && def.fallback) {
+          def.fallback.forEach(function (id) { if (found[i].indexOf(id) < 0 && byId(id, MOCK)) found[i].push(id); });
+        }
         if (found[i].length) {
           out.push({ label: def.label, color: def.color, accent: def.accent, ids: found[i], icon: iconUrl(icons[i]) });
         }
@@ -94,27 +109,68 @@
     return s.charAt(0) === '/' ? 'file://' + s : s;
   }
 
-  // Opens one app id: a plain launch, then an app-control launch.
-  function launchOne(id) {
-    return new Promise(function (resolve, reject) {
-      function viaAppControl(firstError) {
-        try {
-          tz.application.launchAppControl(
-            new tz.ApplicationControl('http://tizen.org/appcontrol/operation/default', null, null, null, null),
-            id, function () { resolve(id); }, function (e) { reject(e || firstError); });
-        } catch (e) { reject(e); }
+  // Resolves true once another app has actually come in front of this one
+  // (this page is hidden), false if that hasn't happened within `ms`. Some
+  // system apps (Samsung TV Plus on 2020 TVs) accept a launch and then don't
+  // appear, so a launch only counts once this confirms it.
+  function cameForward(ms) {
+    return new Promise(function (resolve) {
+      if (document.hidden) { resolve(true); return; }
+      var done = false;
+      function finish(v) {
+        if (done) return;
+        done = true;
+        document.removeEventListener('visibilitychange', check);
+        clearTimeout(timer);
+        resolve(v);
       }
-      try { tz.application.launch(id, function () { resolve(id); }, viaAppControl); } catch (e) { viaAppControl(e); }
+      function check() { if (document.hidden) finish(true); }
+      var timer = setTimeout(function () { finish(false); }, ms);
+      document.addEventListener('visibilitychange', check);
     });
   }
 
-  // Opens the first of `ids` that the TV will open. Rejects with the last error.
-  P.launch = function (ids) {
+  var SILENT = 'accepted but didn\u2019t come on screen';
+
+  // Opens one app id: a plain launch, or an app-control launch if the plain one
+  // is refused; counted only once the app is really on screen. An app that
+  // accepts the launch and stays hidden is given up on (no second method).
+  function launchOne(id) {
+    function attempt(start) {
+      return new Promise(function (resolve, reject) {
+        try { start(resolve, reject); } catch (e) { reject(e); }
+      }).then(function () {
+        return cameForward(3500).then(function (ok) {
+          if (!ok) throw new Error(SILENT);
+          return id;
+        });
+      });
+    }
+    return attempt(function (ok, fail) { tz.application.launch(id, ok, fail); }).then(null, function (first) {
+      if (first && first.message === SILENT) throw first;
+      return attempt(function (ok, fail) {
+        tz.application.launchAppControl(
+          new tz.ApplicationControl('http://tizen.org/appcontrol/operation/default', null, null, null, null),
+          id, ok, fail);
+      }).then(null, function (e) { throw e || first; });
+    });
+  }
+
+  // Opens the first of `ids` that the TV will open; resolves with that id, or
+  // rejects with the last error. The id that worked is remembered (under
+  // `remember`) and tried first next time, so a slow search happens once.
+  P.launch = function (ids, remember) {
     if (!tz) return new Promise(function (resolve) { setTimeout(function () { resolve('preview'); }, 150); });
+    var key = remember ? 'qh.works.' + remember : null;
+    var known = key && P.store.get(key);
+    if (known && ids.indexOf(known) > 0) ids = [known].concat(ids.filter(function (x) { return x !== known; }));
     var i = 0;
     function next(err) {
       if (i >= ids.length) return Promise.reject(err || new Error('no app id'));
-      return launchOne(ids[i++]).then(null, next);
+      return launchOne(ids[i++]).then(function (id) {
+        if (key && id !== known) P.store.set(key, id);
+        return id;
+      }, next);
     }
     return next();
   };

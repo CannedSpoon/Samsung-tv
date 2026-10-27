@@ -98,8 +98,11 @@ photos are an optional extra record:
 
 **The dock**, in this order until you move things:
 - **Your apps:** YouTube, Prime Video, Stremio, Samsung TV Plus and FrameX TV.
-  Apps that aren't installed are left out; if an app has more than one ID on
-  Samsung TVs, each is tried until one opens.
+  Apps that aren't installed are left out. A tile only counts an app as opened
+  once it is actually on screen; if not, it tries the app's other IDs (for TV
+  Plus, every installed app with "TV Plus" in its name, then Live TV, where some
+  2020 TVs keep TV Plus channels). The ID that worked is remembered, so only the
+  first open is slow.
 - **Website tiles** from `sites` in `launcher/js/config.js`, opened in
   Samsung's own browser (none by default).
 - **HDMI inputs** with something plugged in. Name them with
@@ -195,15 +198,20 @@ certificate as Quiet Home); it then has its own tile in Quiet Home's dock and in
 Samsung's Apps list. Remove it with `python tv.py uninstall framex` (restore
 offers this too).
 
-- It shows a short "Opening framextv.cc" screen, then the site fills the
-  screen inside the app (not Samsung's browser). If the TV is offline it says
-  so: OK retries, Back leaves.
+- Its start screen first checks the site answers from the TV, then opens it
+  full screen inside the app after 3 seconds, or press Right for **Open in
+  Samsung's browser**. The app remembers which you chose last.
+- **Black screen in full screen?** Apps on older TVs (2020, Tizen 5.5) get an
+  older web engine than Samsung's browser, and many modern sites show nothing
+  in it. Choose the browser instead: it also has a pointer for sites built for
+  a mouse.
+- **"Couldn't reach framextv.cc"?** Run `python tv.py check-site framextv.cc`
+  on the computer. It asks your normal DNS, public DNS and the TV's
+  ad-blocking DNS, then loads the page, and says whether the site is gone, is
+  blocked by the TV's filter (fix: `python tv.py restore --only dns`), or
+  needs a newer engine.
 - The remote works the site only as far as the site supports arrow keys and OK.
-  A site built for a mouse is easier in Samsung's browser, which has a pointer:
-  add it as a website tile instead (`sites` in config.js, or + from your phone).
 - Leave it with **Exit** or **Home** on the remote.
-- If it opens but shows nothing, the ad-blocking DNS may be blocking the site:
-  try `python tv.py restore --only dns`.
 
 ## Credits
 

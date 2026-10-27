@@ -7,50 +7,169 @@
   <style>
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0e0f13; color: #fff;
       font-family: "SamsungOne", "Helvetica Neue", Arial, sans-serif; cursor: none; }
-    #box { position: absolute; top: 50%; left: 50%; width: 1200px; margin: -170px 0 0 -600px; text-align: center; }
+    #box { position: absolute; top: 50%; left: 50%; width: 1300px; margin: -230px 0 0 -650px; text-align: center; }
     h1 { margin: 0; font-size: 110px; font-weight: 800; letter-spacing: -3px; }
-    p { margin: 24px 0 0; font-size: 34px; opacity: .75; }
-    #help { font-size: 26px; opacity: .55; }
-    .dots::after { content: ""; animation: dots 1.4s steps(4) infinite; }
-    @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+    #status { margin: 26px 0 0; font-size: 34px; opacity: .8; min-height: 44px; }
+    #detail { margin: 14px auto 0; max-width: 1100px; font-size: 25px; line-height: 1.45; opacity: .6; min-height: 36px; }
+    #choices { display: flex; justify-content: center; gap: 22px; margin-top: 40px; }
+    .choice { padding: 18px 30px; border-radius: 18px; font-size: 28px; background: rgba(255,255,255,.1); }
+    .choice.focus { background: #fff; color: #111; }
+    #help { margin-top: 34px; font-size: 22px; opacity: .45; }
   </style>
 </head>
 <body>
   <div id="box">
     <h1>FrameX TV</h1>
-    <p id="status" class="dots">Opening framextv.cc</p>
-    <p id="help">Press Exit or Home on the remote to leave.</p>
+    <p id="status">Checking framextv.cc&hellip;</p>
+    <p id="detail"></p>
+    <div id="choices"></div>
+    <p id="help">Left/Right and OK to choose. Exit or Home leaves the site.</p>
   </div>
   <script>
     /*
-     * A short splash, then the site full screen in this app. If the TV is
-     * offline, say so instead of opening a blank page; OK retries, Back leaves.
+     * FrameX TV start screen. Checks the site answers from the TV, then opens it
+     * full screen in this app (or in Samsung's browser, which has a pointer and
+     * a newer engine than apps get on older TVs; the choice is remembered).
+     * A blank site in the app usually means the site needs a newer engine:
+     * choose the browser. If the site can't be reached, it says why.
      */
     (function () {
       'use strict';
       var URL = 'https://framextv.cc/';
-      var status = document.getElementById('status');
+      var MODE = 'framex.mode';             // 'app' | 'browser', the last choice
+      var tz = typeof window.tizen !== 'undefined' ? window.tizen : null;
+      var $ = function (id) { return document.getElementById(id); };
+      var choices = [];
+      var at = 0;
+      var countdown = null;
+
+      function remembered() { try { return localStorage.getItem(MODE) || 'app'; } catch (e) { return 'app'; } }
+      function remember(m) { try { localStorage.setItem(MODE, m); } catch (e) { /* storage blocked */ } }
 
       function leave() {
-        try { tizen.application.getCurrentApplication().exit(); } catch (e) { window.close(); }
+        try { tz.application.getCurrentApplication().exit(); } catch (e) { window.close(); }
       }
 
-      function go() {
+      function openHere() { remember('app'); location.replace(URL); }
+
+      function openBrowser() {
+        remember('browser');
+        try {
+          tz.application.launchAppControl(
+            new tz.ApplicationControl('http://tizen.org/appcontrol/operation/view', URL, null, null, null),
+            'org.tizen.browser', function () { setTimeout(leave, 1500); },
+            function () { $('detail').textContent = 'Samsung’s browser wouldn’t open it.'; });
+        } catch (e) { $('detail').textContent = 'Samsung’s browser isn’t available here.'; }
+      }
+
+      function render() {
+        var box = $('choices');
+        box.innerHTML = '';
+        choices.forEach(function (c, i) {
+          var b = document.createElement('div');
+          b.className = 'choice' + (i === at ? ' focus' : '');
+          b.textContent = c.label;
+          box.appendChild(b);
+        });
+      }
+
+      function offer(list, auto) {
+        choices = list;
+        at = 0;
+        render();
+        clearInterval(countdown);
+        if (!auto) return;
+        var left = 3;
+        $('status').textContent = auto.label + ' in ' + left + '…';
+        countdown = setInterval(function () {
+          left -= 1;
+          if (left > 0) { $('status').textContent = auto.label + ' in ' + left + '…'; return; }
+          clearInterval(countdown);
+          auto.run();
+        }, 1000);
+      }
+
+      var HERE = { label: 'Open full screen', run: openHere };
+      var BROWSER = { label: 'Open in Samsung’s browser', run: openBrowser };
+      var RETRY = { label: 'Try again', run: check };
+      var EXIT = { label: 'Exit', run: leave };
+
+      // Any answer from the site (even an error page) means it's reachable. A
+      // no-cors fetch succeeds for any answer and fails only when the network or
+      // DNS does, so another site's cross-origin rules can't make it look down.
+      function probe() {
+        var started = Date.now();
+        if (window.fetch) {
+          return new Promise(function (resolve) {
+            var timer = setTimeout(function () { resolve({ ok: false, timeout: true }); }, 10000);
+            fetch(URL, { mode: 'no-cors', cache: 'no-store' }).then(function () {
+              clearTimeout(timer); resolve({ ok: true });
+            }, function () {
+              clearTimeout(timer); resolve({ ok: false, fast: Date.now() - started < 1500 });
+            });
+          });
+        }
+        return new Promise(function (resolve) {
+          var x = new XMLHttpRequest();
+          try {
+            x.open('GET', URL, true);
+            x.timeout = 10000;
+            x.onload = function () { resolve({ ok: true, status: x.status }); };
+            x.onerror = function () { resolve({ ok: false, fast: Date.now() - started < 1500 }); };
+            x.ontimeout = function () { resolve({ ok: false, timeout: true }); };
+            x.send();
+          } catch (e) { resolve({ ok: false }); }
+        });
+      }
+
+      function check() {
+        clearInterval(countdown);
+        $('status').textContent = 'Checking framextv.cc…';
+        $('detail').textContent = '';
+        choices = [];
+        render();
         if (navigator.onLine === false) {
-          status.className = '';
-          status.textContent = 'The TV is offline. Check its internet connection, then press OK to try again.';
+          $('status').textContent = 'The TV is offline.';
+          $('detail').textContent = 'Check its network connection (Settings > Connection > Network).';
+          offer([RETRY, EXIT]);
           return;
         }
-        status.className = 'dots';
-        status.textContent = 'Opening framextv.cc';
-        setTimeout(function () { location.replace(URL); }, 600);
+        probe().then(function (r) {
+          var preferBrowser = remembered() === 'browser';
+          var first = preferBrowser ? BROWSER : HERE;
+          var second = preferBrowser ? HERE : BROWSER;
+          if (r.ok) {
+            $('detail').textContent = preferBrowser ? '' :
+              'If the site stays black in full screen, press Exit, open FrameX TV again and choose the browser.';
+            offer([first, second, EXIT], first);
+            return;
+          }
+          $('status').textContent = r.timeout ? 'framextv.cc isn’t answering.' : 'Couldn’t reach framextv.cc from the TV.';
+          $('detail').textContent = r.fast
+            ? 'The name may not resolve: the site may be down or gone, or the TV’s ad-blocking DNS may block it. ' +
+              'On the computer, run:  python tv.py check-site framextv.cc'
+            : 'The site may be down or slow. You can still try opening it.';
+          offer([RETRY, BROWSER, HERE, EXIT]);
+        });
       }
 
       document.addEventListener('keydown', function (e) {
-        if (e.keyCode === 10009 || e.keyCode === 27 || e.keyCode === 8) { e.preventDefault(); leave(); }
-        else if (e.keyCode === 13) go();
+        var k = e.keyCode;
+        if (k === 10009 || k === 27 || k === 8) { e.preventDefault(); leave(); return; }
+        if (!choices.length) return;
+        if (k === 37 || k === 39) {
+          clearInterval(countdown);
+          $('status').textContent = 'Choose how to open it.';
+          at = Math.max(0, Math.min(choices.length - 1, at + (k === 37 ? -1 : 1)));
+          render();
+        } else if (k === 13) {
+          clearInterval(countdown);
+          choices[at].run();
+        } else return;
+        e.preventDefault();
       });
-      go();
+
+      check();
     }());
   </script>
 </body>

@@ -23,9 +23,12 @@
         names: ['^prime video$', '^amazon prime video$', '\\bprime video\\b'] },
       { label: 'Stremio', color: '#2a1a4a', accent: '#8a5cf6',
         ids: [], names: ['^stremio$', '\\bstremio\\b'] },
+      // TV Plus: the app id differs between TV years, and on some 2020 TVs its
+      // channels live in Live TV instead, so every match is tried, then Live TV.
       { label: 'TV Plus', color: '#13202e', accent: '#00c2ff',
         ids: ['com.samsung.tv.tvplus', 'com.samsung.tv.tvPlusDeeplinker'],
-        names: ['^samsung tv plus$', '^tv plus$'] },
+        names: ['^samsung tv plus$', '^tv plus$', '\\btv plus\\b', 'tvplus'], searchAll: true,
+        fallback: ['org.tizen.tv-viewer'] },
       // The full-screen FrameX TV app in apps/framex: python tv.py install framex
       { label: 'FrameX TV', color: '#1b1d24', accent: '#9b85ff',
         ids: ['FrameXTV01.App'], names: ['^framex tv$'] }

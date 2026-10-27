@@ -391,10 +391,13 @@
     else if (it.kind === 'shortcut' && it.shortcut.type === 'youtube') job = platform.openYouTube(it.shortcut, youtubeIds());
     else if (it.kind === 'shortcut') job = platform.openUrl(it.shortcut.url);
     else if (it.kind === 'site') job = platform.openUrl(it.url);
-    else job = platform.launch(it.ids);
+    else {
+      if (it.ids.length > 1) hint('Opening ' + it.label + '\u2026', 15000);
+      job = platform.launch(it.ids, it.key);
+    }
     busy = true;
     el.classList.add('opening');
-    job.then(null, function (e) {
+    job.then(function () { if (it.ids && it.ids.length > 1) hint(''); }, function (e) {
       // The TV's reason and the ids tried, so a wrong id can be fixed in js/config.js.
       var why = (e && (e.message || e.name)) || 'error';
       hint('Couldn’t open ' + it.label + (it.ids ? ' (' + it.ids.join(', ') + ': ' + why + ')' : ' (' + why + ')'), 10000);

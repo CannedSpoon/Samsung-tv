@@ -2,12 +2,12 @@
 <!--
   FrameX TV - opens https://framextv.cc/ full screen as its own TV app.
   Package FrameXTV01, app FrameXTV01.App. A local start page (index.html)
-  shows a moment of splash, then the app navigates to the site; the site's
-  domain is allowed below, so it stays inside this app rather than opening
-  Samsung's browser. Public-level privileges only.
+  checks the site answers, then navigates to it; the site's domain is allowed
+  below, so it stays inside this app. It can instead hand the address to
+  Samsung's browser (application.launch). Public-level privileges only.
 -->
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://quiet-home.local/framex" version="1.0.0" viewmodes="maximized">
+        id="http://quiet-home.local/framex" version="1.1.0" viewmodes="maximized">
     <tizen:application id="FrameXTV01.App" package="FrameXTV01" required_version="3.0"/>
     <name>FrameX TV</name>
     <description>framextv.cc, full screen.</description>
@@ -17,9 +17,12 @@
     <feature name="http://tizen.org/feature/screen.size.all"/>
 
     <access origin="*" subdomains="true"/>
-    <tizen:allow-navigation>framextv.cc *.framextv.cc</tizen:allow-navigation>
+    <!-- Any address: the site may redirect to another domain or a CDN, and a
+         blocked redirect shows as a black screen. -->
+    <tizen:allow-navigation>*</tizen:allow-navigation>
 
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
 
     <tizen:profile name="tv-samsung"/>

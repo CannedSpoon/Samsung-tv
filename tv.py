@@ -26,6 +26,7 @@ Other commands:
   python3 tv.py weather "Town"  show the weather on Quiet Home (then install again)
   python3 tv.py hdmi 1 "Xbox"   name an HDMI tile (then install again)
   python3 tv.py featured KEY    slideshow of what's on your services (free TMDB key; then install)
+  python3 tv.py check-site [framextv.cc]   why a site might not open on the TV (DNS filter, site down, engine)
   python3 tv.py cert --country GB      make the free Samsung signing certificate for this TV
   python3 tv.py install framex  build and install the FrameX TV app (framextv.cc, full screen)
   python3 tv.py uninstall [framex]     remove Quiet Home (or the FrameX TV app)
@@ -645,6 +646,110 @@ def cmd_weather(args):
     say(f"Weather set to {labels[found.index(pick)]}. Run  python3 tv.py install  to update the TV.")
 
 
+def dns_lookup(server, name, timeout=4):
+    """Asks one DNS server for `name`'s IPv4 addresses. Returns (answer, [ips]):
+    answer is 'ok', 'nxdomain' (no such name), 'refused', 'timeout' or 'error'."""
+    import socket
+    import struct
+    query_id = secrets.randbelow(65536)
+    question = b"".join(bytes([len(p)]) + p.encode("idna") for p in name.strip(".").split(".")) + b"\0"
+    packet = struct.pack("!HHHHHH", query_id, 0x0100, 1, 0, 0, 0) + question + struct.pack("!HH", 1, 1)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        s.sendto(packet, (server, 53))
+        data, _ = s.recvfrom(4096)
+    except socket.timeout:
+        return "timeout", []
+    except OSError:
+        return "error", []
+    finally:
+        s.close()
+    if len(data) < 12 or struct.unpack("!H", data[:2])[0] != query_id:
+        return "error", []
+    flags, qd, an = struct.unpack("!HHH", data[2:8])
+    rcode = flags & 0xF
+    if rcode == 3:
+        return "nxdomain", []
+    if rcode != 0:
+        return "refused", []
+
+    def skip_name(i):
+        while True:
+            n = data[i]
+            if n == 0:
+                return i + 1
+            if n & 0xC0 == 0xC0:
+                return i + 2
+            i += n + 1
+
+    i = 12
+    for _ in range(qd):
+        i = skip_name(i) + 4
+    ips = []
+    for _ in range(an):
+        i = skip_name(i)
+        rtype, _, _, rdlen = struct.unpack("!HHIH", data[i:i + 10])
+        i += 10
+        if rtype == 1 and rdlen == 4:
+            ips.append(".".join(str(b) for b in data[i:i + 4]))
+        i += rdlen
+    return "ok", ips
+
+
+def cmd_check_site(args):
+    """Why might a site not open on the TV? DNS (normal vs the TV's filter) and what the site sends back."""
+    import socket
+    url = args.site if "://" in args.site else "https://" + args.site
+    host = urllib.parse.urlparse(url).hostname
+    say(f"Checking {host}\n")
+    filter_dns = load_json(LOCAL_SETTINGS, {}).get("dns_filter") or "76.76.2.37"
+    try:
+        normal = sorted({a[4][0] for a in socket.getaddrinfo(host, 443, socket.AF_INET)})
+    except OSError:
+        normal = []
+    say(f"  This computer's DNS:       {', '.join(normal) if normal else 'no such name / not found'}")
+    public, public_ips = dns_lookup("1.1.1.1", host)
+    say(f"  Public DNS (1.1.1.1):      {', '.join(public_ips) if public_ips else public}")
+    filt, filt_ips = dns_lookup(filter_dns, host)
+    blocked = filt == "nxdomain" or any(ip in ("0.0.0.0", "127.0.0.1") for ip in filt_ips)
+    say(f"  TV's filter ({filter_dns}): {', '.join(filt_ips) if filt_ips else filt}"
+        + ("   <- blocked by the filter" if blocked and (normal or public_ips) else ""))
+    status = None
+    if normal or public_ips:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 5.5) "
+                                                       "AppleWebKit/537.36 (KHTML, like Gecko) Version/5.5 TV Safari/537.36"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                status, final, ctype = r.status, r.geturl(), r.headers.get("Content-Type", "")
+                body = r.read(400000).decode("utf-8", errors="replace")
+                frame = r.headers.get("X-Frame-Options") or ""
+        except urllib.error.HTTPError as e:
+            status, final, ctype, body, frame = e.code, url, e.headers.get("Content-Type", ""), "", ""
+        except OSError as e:
+            say(f"  Opening it:                failed ({e})")
+        if status:
+            say(f"  Opening it:                HTTP {status}, {ctype or 'unknown type'}"
+                + (f", redirected to {final}" if final.rstrip('/') != url.rstrip('/') else ""))
+            if re.search(r"cf-chl|challenge-platform|Just a moment", body or ""):
+                say("                             (a Cloudflare 'checking your browser' page: older TV engines often fail it)")
+            scripts = len(re.findall(r"<script", body or "", re.I))
+            if scripts and len(re.sub(r"<script.*?</script>|<[^>]+>|\s", "", body or "", flags=re.S)) < 200:
+                say(f"                             (almost all JavaScript, {scripts} script{'s' if scripts != 1 else ''}: "
+                    "needs a modern engine to show anything)")
+    say("")
+    if not normal and not public_ips:
+        say(f"Result: {host} doesn't exist or is down; it isn't the TV. Check the address (on a phone too).")
+    elif blocked:
+        say("Result: the site exists, but the TV's ad-blocking DNS blocks it. Either put the TV's DNS back\n"
+            "        (python3 tv.py restore --only dns), or choose a different filter in the DNS step.")
+    elif status and status >= 400:
+        say(f"Result: the site answers with an error (HTTP {status}); it may block TVs or be broken right now.")
+    else:
+        say("Result: the site is reachable. If it's black in the FrameX TV app, the site needs a newer engine than\n"
+            "        apps get on this TV: choose 'Open in Samsung's browser' on the app's start screen.")
+
+
 def cmd_featured(args):
     """Featured slideshow: checks the TMDB key, then saves it with the region."""
     if args.off:
@@ -887,6 +992,8 @@ def main():
     p.add_argument("place", nargs="?", help='your town, e.g. "Melbourne"')
     p.add_argument("--off", action="store_true")
     p.add_argument("--fahrenheit", action="store_true")
+    p = sub.add_parser("check-site")
+    p.add_argument("site", nargs="?", default="framextv.cc", help="address to check (default framextv.cc)")
     p = sub.add_parser("featured")
     p.add_argument("key", nargs="?", help="your TMDB API key or read access token")
     p.add_argument("--region", default="AU", help="2-letter country for where-to-watch (default AU)")
@@ -903,7 +1010,7 @@ def main():
     sub.add_parser("status")
     args = parser.parse_args()
     try:
-        globals()["cmd_" + args.cmd](args)
+        globals()["cmd_" + args.cmd.replace("-", "_")](args)
     except KeyboardInterrupt:
         say("\nStopped. Everything done so far is saved; rerun to continue.")
 
