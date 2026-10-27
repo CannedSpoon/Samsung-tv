@@ -617,6 +617,8 @@ def cmd_doctor(args):
         ("tizen CLI", tizen.tizen_exe(), bool(tizen.tizen_exe())),
         ("sdb", tizen.sdb_exe(), bool(tizen.sdb_exe())),
         ("Samsung certificate tool", tizen.skills_dir(), os.path.isdir(tizen.skills_dir())),
+        ("OpenSSL (for the certificate)", tizen.openssl_dir() or "not found: comes with Git for Windows",
+         bool(tizen.openssl_dir())),
         ("Signing profile '" + tizen.profile() + "'", tizen.cert_dir(),
          os.path.exists(os.path.join(tizen.cert_dir(), "distributor.p12"))),
         ("Webcam photos (optional)", camera_setting() or "off: no photos (not needed)", True),

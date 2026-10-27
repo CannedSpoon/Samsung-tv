@@ -89,11 +89,38 @@ def cert_dir():
     return os.path.join(tizen_data(), "keystore", "samsung", profile())
 
 
-def run(cmd, quiet=False, timeout=600, secret=None):
+def openssl_dir():
+    """Folder holding openssl, which Samsung's certificate tool needs on PATH.
+
+    Windows has no openssl of its own, but Git for Windows ships one; use that.
+    """
+    found = shutil.which("openssl")
+    if found:
+        return os.path.dirname(found)
+    if not WINDOWS:
+        return None
+    roots = []
+    git = shutil.which("git")
+    if git:  # ...\Git\cmd\git.exe -> ...\Git
+        roots.append(os.path.dirname(os.path.dirname(git)))
+    for env in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
+        if os.environ.get(env):
+            roots.append(os.path.join(os.environ[env], "Git"))
+            roots.append(os.path.join(os.environ[env], "Programs", "Git"))
+    for root in roots:
+        for sub in (("usr", "bin"), ("mingw64", "bin")):
+            folder = os.path.join(root, *sub)
+            if os.path.exists(os.path.join(folder, "openssl.exe")):
+                return folder
+    return None
+
+
+def run(cmd, quiet=False, timeout=600, secret=None, env=None):
     """Runs a tool, printing its output; raises ToolError if it fails."""
     shown = " ".join(("****" if secret and a == secret else a) for a in cmd)
     print(f"$ {shown}", flush=True)
-    p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
+                       env=env)
     out = (p.stdout + p.stderr).strip()
     if out and not quiet:
         print(out, flush=True)
@@ -199,6 +226,11 @@ def make_certificate(ip, country, new_tv=False):
     if not os.path.exists(cli):
         raise ToolError(f"Samsung's certificate tool isn't at {cli}. Clone it (docs/INSTALL.md, step 3) "
                         "or set TIZEN_SKILLS.")
+    ssl_dir = openssl_dir()
+    if not ssl_dir:
+        raise ToolError("Samsung's certificate tool needs OpenSSL, which wasn't found. On Windows it comes with "
+                        "Git for Windows (winget install Git.Git); on macOS/Linux install openssl.")
+    env = {**os.environ, "PATH": ssl_dir + os.pathsep + os.environ.get("PATH", "")}
     device = duid(ip)
     print(f"TV device ID: {device}")
     pw = password()
@@ -210,12 +242,12 @@ def make_certificate(ip, country, new_tv=False):
     else:
         print("Making the author certificate. A Samsung sign-in opens in your browser (5 minutes to finish).")
         run([node, cli, "generate-samsung-author", "--profile-name", profile(), "--identity", "Quiet Home",
-             "--country", country.upper(), "--password-file", PASSWORD_FILE])
+             "--country", country.upper(), "--password-file", PASSWORD_FILE], env=env)
     if os.path.exists(distributor) and not new_tv:
         print(f"Keeping the existing distributor certificate: {distributor}")
     else:
         run([node, cli, "generate-samsung-distributor", "--profile-name", profile(), "--duid-list", device,
-             "--privilege", "Public", "--password-file", PASSWORD_FILE])
+             "--privilege", "Public", "--password-file", PASSWORD_FILE], env=env)
 
     shutil.copy2(ca, folder)
     # The tizen CLI takes the password as an argument; it is masked in what's printed here.
