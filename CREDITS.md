@@ -6,17 +6,31 @@
   contributors): the settings list and DNS filter choice (its
   `docs/SAMSUNG-SETTINGS.md`), the install and signing steps, app matching and the
   launch fallback in `launcher/js/platform.js`, the remote-control WebSocket in
-  `tools/samsungtv.py`, `tools/phonecam.py` (copied), and the twelve photos.
+  `tools/samsungtv.py`, `tools/phonecam.py` (copied), the twelve CC0 photos, the
+  photo website (`launcher/service/` and `launcher/js/ytparse.js`, copied; only
+  the package ID, site name and icons changed), its client in
+  `launcher/js/service.js`, the long-press and screensaver handling, and the
+  YouTube and website launch methods.
 - [Arn0 Launcher](https://github.com/NelsonEU/arn0-tv) (MIT, Arnaud Etienne): the
-  Smart Hub escape tile (`com.samsung.tv.csfs`) and the rule of always keeping a
-  route back to the TV's own menus. Its native Home-button helper is
+  Smart Hub escape tile (`com.samsung.tv.csfs`), the rule of always keeping a
+  route back to the TV's own menus, HDMI input switching (`launcher/js/inputs.js`)
+  and eight photos. Its native Home-button helper is
   deliberately not used: it is untested beyond one TV and firmware.
 
 ## Photos
 
-All twelve photos in `launcher/wallpapers/` are CC0 1.0 (public domain) from
-Wikimedia Commons, as listed in Glass Home's credits. Titles, photographers and
-source pages are in [`launcher/wallpapers/manifest.json`](launcher/wallpapers/manifest.json).
+- `nature-*.jpg` (12): CC0 1.0 (public domain) from Wikimedia Commons, as listed
+  in Glass Home's credits.
+- `unsplash-*.jpg` (8): under the [Unsplash License](https://unsplash.com/license),
+  as bundled by Arn0 Launcher.
+
+Titles, photographers and sources for each are in
+[`launcher/wallpapers/manifest.json`](launcher/wallpapers/manifest.json).
+
+## Weather
+
+Weather data by [Open-Meteo.com](https://open-meteo.com/), CC BY 4.0 (credited
+on screen when weather is on).
 
 ## Trademarks
 

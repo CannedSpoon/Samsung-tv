@@ -94,23 +94,60 @@ photos are an optional extra record:
 
 ## Quiet Home
 
-- A dock of Netflix, YouTube, Prime Video, Disney+, Stremio and Samsung TV Plus,
-  plus **Smart Hub** last: Samsung's own home screen, your way back to settings
-  and inputs. Apps that aren't installed are left out.
-- Twelve CC0 nature photos crossfade every minute with a slow drift. A clock
-  and date are shown, with the photo's title.
-- Left/Right and OK on the remote. No network access, no tracking, no
-  framework. Timers stop while another app is open.
-- Settings in [`launcher/js/config.js`](launcher/js/config.js): dock apps and
-  order, photo interval, drift (turn it off on an older TV), date format.
+![The + panel: add photos and shortcuts from your phone](docs/screenshots/panel.png)
+
+**The dock**, in this order until you move things:
+- **Your apps:** Netflix, YouTube, Prime Video, Disney+, Stremio and Samsung TV
+  Plus. Apps that aren't installed are left out; if an app has more than one ID
+  on Samsung TVs, each is tried until one opens.
+- **HDMI inputs** with something plugged in. Name them with
+  `python tv.py hdmi 1 "PlayStation 5"`; otherwise they show as "HDMI 1".
+- **Shortcuts you add from your phone:** YouTube videos and websites.
+- **+**, then **Smart Hub** (Samsung's own home screen, your way back to
+  settings), which always stay last.
+
+**The screen:**
+- **Photos:** 20 nature photos (12 CC0 from Glass Home, 8 Unsplash from Arn0)
+  plus any you upload, crossfading every minute with a slow drift.
+- **Clock and date,** and optionally the weather:
+  `python tv.py weather "Melbourne"` (Open-Meteo, free, no account).
+- **Screensaver:** after 3 minutes idle, only the photos and the clock show.
+  The first button press just wakes it.
+- **Evening dimming:** photos are darker from 21:00 to 06:00.
+
+| Remote | What happens |
+|---|---|
+| Left / Right | move along the dock |
+| OK | open the app, input, video or website |
+| Hold OK | Move left, Move right, Hide (or Remove, for a shortcut), Cancel |
+| 1 to 9 | open that tile straight away |
+| OK on **+** | the photo website's address and password; New password; show hidden tiles; reset the order |
+| Back | closes a menu; does nothing on the home screen |
+
+**The photo website** (from Glass Home): open the address shown under **+** on
+a phone on your Wi-Fi and sign in with the password shown there. Upload photos
+(resized on the phone, so iPhone HEIC works) or add YouTube and website
+shortcuts; they appear on the TV within about 20 seconds. It's plain HTTP and
+only answers devices on your home network. It was tested on a 2023 TV (Tizen 8);
+if your TV can't run it, the + panel says so and everything else still works.
+
+**Settings:** everything is in [`launcher/js/config.js`](launcher/js/config.js)
+(dock apps, photo interval, drift, screensaver, dimming hours, HDMI behaviour,
+number keys, photo website on/off). `tv.py weather` and `tv.py hdmi` write
+your own values to `launcher/js/config.local.js`. After any change, run
+`python tv.py install` (with Developer Mode on).
+
+**Network use:** only the photo website on the TV itself and, if you turn it on,
+the weather. No tracking.
 
 It can't replace what the remote's Home button opens: Samsung doesn't allow
 that. With **Autorun Last App** on, the TV starts in Quiet Home if you turned it
 off from Quiet Home, and Samsung's Home has it as the first tile.
 
-Preview it in a browser: `node dev/preview.mjs`, open <http://localhost:8080>,
-use the arrow keys. `node dev/screenshot.mjs` (needs Playwright) refreshes
-`docs/screenshots/`.
+**Preview it in a browser:** run `node dev/preview.mjs`, open
+<http://localhost:8080> and use the arrow keys. `node dev/run-website.js` also
+runs the photo website locally (after `python tv.py install` has made
+`launcher/js/local-key.js`). To add bundled photos, see `dev/wallpapers.py`.
 
 ## Credits
 

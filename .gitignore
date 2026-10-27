@@ -6,3 +6,5 @@ dist/
 launcher/.buildResult/
 __pycache__/
 node_modules/
+launcher/js/local-key.js
+launcher/js/config.local.js

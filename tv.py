@@ -23,6 +23,8 @@ Other commands:
   python3 tv.py restore --only dns     just put the DNS back (if the TV lost internet)
   python3 tv.py doctor          check this computer is ready to install Quiet Home
   python3 tv.py camera          use a webcam to photograph the TV at each step (optional)
+  python3 tv.py weather "Town"  show the weather on Quiet Home (then install again)
+  python3 tv.py hdmi 1 "Xbox"   name an HDMI tile (then install again)
   python3 tv.py cert --country GB      make the free Samsung signing certificate for this TV
   python3 tv.py uninstall       remove Quiet Home
 
@@ -40,7 +42,10 @@ import re
 import shutil
 import subprocess
 import sys
+import secrets
 import time
+import urllib.parse
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "tools"))
@@ -52,6 +57,8 @@ BACKUPS = os.path.join(HERE, "backups")
 TV_FILE = os.path.join(tv.STATE, "tv.json")
 LAUNCHER_ID = "QuietHome1.Home"
 LAUNCHER_PKG = "QuietHome1"
+LOCAL_SETTINGS = os.path.join(tv.STATE, "launcher-settings.json")
+LAUNCHER_JS = os.path.join(HERE, "launcher", "js")
 
 
 # ---- small helpers ---------------------------------------------------------------
@@ -577,9 +584,79 @@ def cmd_autostart(args):
     session.log(check="power-on", visible=bool(status.get("visible")))
 
 
+def prepare_launcher():
+    """Writes the launcher's per-install files (both git-ignored) before a build.
+
+    js/local-key.js: the secret the app and its photo website share; made once.
+    js/config.local.js: your settings from `tv.py weather` and `tv.py hdmi`.
+    """
+    key_file = os.path.join(LAUNCHER_JS, "local-key.js")
+    if not os.path.exists(key_file):
+        with open(key_file, "w", encoding="utf-8") as f:
+            f.write("// Quiet Home - secret shared by this app and its own photo website service.\n"
+                    "// Made per install by tv.py, never in git, never served over the network.\n"
+                    f"window.GH_LOCAL_KEY = '{secrets.token_urlsafe(32)}';\n")
+    local = load_json(LOCAL_SETTINGS, {})
+    with open(os.path.join(LAUNCHER_JS, "config.local.js"), "w", encoding="utf-8") as f:
+        f.write("// Your settings, written by tv.py (weather, hdmi); not in git. Merged over js/config.js.\n"
+                "(function () {\n  var c = window.QH.config;\n"
+                f"  var mine = {json.dumps(local, indent=2, ensure_ascii=False)};\n"
+                "  Object.keys(mine).forEach(function (k) {\n"
+                "    c[k] = mine[k] && typeof mine[k] === 'object' && !Array.isArray(mine[k])\n"
+                "      ? Object.assign({}, c[k], mine[k]) : mine[k];\n"
+                "  });\n}());\n")
+
+
+def save_setting(section, values):
+    local = load_json(LOCAL_SETTINGS, {})
+    local.setdefault(section, {}).update(values)
+    os.makedirs(tv.STATE, exist_ok=True)
+    save_json(LOCAL_SETTINGS, local)
+    prepare_launcher()
+
+
+def cmd_weather(args):
+    if args.off:
+        save_setting("weather", {"enabled": False})
+        say("Weather is off. Run  python3 tv.py install  to update the TV.")
+        return
+    if not args.place:
+        die('Which town? For example:  python3 tv.py weather "Melbourne"   (or --off)')
+    query = urllib.parse.urlencode({"name": args.place, "count": 6, "language": "en", "format": "json"})
+    try:
+        with urllib.request.urlopen("https://geocoding-api.open-meteo.com/v1/search?" + query, timeout=15) as r:
+            found = json.loads(r.read().decode("utf-8")).get("results") or []
+    except (OSError, ValueError) as e:
+        die(f"Couldn't look up '{args.place}': {e}")
+    if not found:
+        die(f"No place called '{args.place}'. Try a nearby town, or add the state: \"Ballarat Victoria\".")
+    labels = [", ".join(x for x in (p.get("name"), p.get("admin1"), p.get("country")) if x) for p in found]
+    pick = found[0]
+    if len(found) > 1:
+        answer = choose("Which one?", labels)
+        if answer in labels:
+            pick = found[labels.index(answer)]
+    save_setting("weather", {"enabled": True, "place": pick["name"], "unit": "fahrenheit" if args.fahrenheit else "celsius",
+                             # two decimals (about 1 km) is plenty, and all that is sent to Open-Meteo
+                             "latitude": round(pick["latitude"], 2), "longitude": round(pick["longitude"], 2)})
+    say(f"Weather set to {labels[found.index(pick)]}. Run  python3 tv.py install  to update the TV.")
+
+
+def cmd_hdmi(args):
+    names = load_json(LOCAL_SETTINGS, {}).get("inputs", {}).get("names", {})
+    if args.name:
+        names[str(args.port)] = args.name
+    else:
+        names.pop(str(args.port), None)
+    save_setting("inputs", {"names": names})
+    say((f"HDMI {args.port} is now called \"{args.name}\"." if args.name else f"HDMI {args.port} is back to its plain name.")
+        + " Run  python3 tv.py install  to update the TV.")
+
+
 def cmd_install(args):
     ip = the_tv()
     session = Session.latest()
+    prepare_launcher()
     try:
         say("\n--- Building Quiet Home")
         tizen.build()
@@ -761,6 +838,13 @@ def main():
     sub.add_parser("install")
     sub.add_parser("uninstall")
     sub.add_parser("doctor")
+    p = sub.add_parser("weather")
+    p.add_argument("place", nargs="?", help='your town, e.g. "Melbourne"')
+    p.add_argument("--off", action="store_true")
+    p.add_argument("--fahrenheit", action="store_true")
+    p = sub.add_parser("hdmi")
+    p.add_argument("port", type=int, help="HDMI port number")
+    p.add_argument("name", nargs="?", help='e.g. "PlayStation"; leave out to go back to "HDMI n"')
     p = sub.add_parser("camera")
     p.add_argument("--off", action="store_true", help="stop taking webcam photos")
     p = sub.add_parser("cert")

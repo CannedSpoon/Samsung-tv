@@ -1,4 +1,4 @@
-// Renders the preview at 1920x1080 and saves screenshots to docs/screenshots/.
+// Renders the preview at 1920x1080 and saves docs/screenshots/home.png.
 // Needs `node dev/preview.mjs` running and Playwright installed.
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright'); // resolves a global install too
@@ -15,9 +15,6 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto(url);
 await page.waitForTimeout(2500);
 await page.screenshot({ path: out + 'home.png' });
-for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
-await page.waitForTimeout(400);
-await page.screenshot({ path: out + 'focus-disney.png' });
 console.log('focused:', await page.textContent('#label'), '| tiles:', await page.$$eval('.tile', (t) => t.map((x) => x.textContent).join(', ')));
 await browser.close();
 if (errors.length) { console.error('page errors:\n' + errors.join('\n')); process.exit(1); }

@@ -38,6 +38,31 @@
     photoIntervalMs: 60000,   // how often the photo changes
     fadeMs: 1800,             // crossfade length
     drift: true,              // slow zoom on each photo; false on a slow TV
-    locale: ''                // date/time format, e.g. 'en-GB'; empty uses the TV's
+    locale: '',               // date/time format, e.g. 'en-GB'; empty uses the TV's
+
+    // HDMI tiles for whatever is plugged in, after the apps. Name them with
+    // `python tv.py hdmi 1 "PlayStation"`. 'switch+viewer' switches the TV to the
+    // input and opens Samsung's TV viewer; 'switch' only switches.
+    inputs: { enabled: true, names: {}, showUnplugged: false, method: 'switch+viewer' },
+
+    // After this long without a button press, only the photos and the clock show.
+    // The first press just wakes the screen.
+    screensaver: { enabled: true, afterMs: 3 * 60 * 1000 },
+
+    // Darker photos in the evening, by the TV's clock (24-hour).
+    night: { enabled: true, from: '21:00', to: '06:00', dim: 0.45 },
+
+    // Weather under the date, from Open-Meteo (free, no account). Off until you
+    // set a place: `python tv.py weather "Your town"`. The only internet use.
+    weather: { enabled: false, place: '', latitude: 0, longitude: 0, unit: 'celsius', refreshMs: 30 * 60 * 1000 },
+
+    // The + tile: the address and password of the TV's own website, where a
+    // phone on your Wi-Fi uploads photos and adds YouTube or website shortcuts.
+    photoWebsite: { enabled: true, port: 8090 },
+
+    // Number keys 1-9 on the remote open that dock tile straight away.
+    quickKeys: true,
+
+    longPressMs: 700           // hold OK this long for the Move / Hide menu
   };
 }());

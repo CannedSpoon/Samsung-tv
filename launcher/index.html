@@ -11,24 +11,50 @@
     <div id="bg-a" class="bg"></div>
     <div id="bg-b" class="bg"></div>
     <div id="scrim"></div>
+    <div id="dim"></div>
 
     <header id="clock">
       <div id="time"></div>
       <div id="date"></div>
+      <div id="weather"></div>
     </header>
 
     <div id="caption"></div>
+    <div id="credit">Weather: Open-Meteo.com</div>
 
     <footer>
       <div id="label"></div>
-      <div id="dock"></div>
+      <div id="dock"><div id="strip"></div></div>
       <div id="hint"></div>
     </footer>
+
+    <div id="menu" class="sheet">
+      <div id="menu-title" class="sheet-title"></div>
+      <div id="menu-list" class="choices vertical"></div>
+    </div>
+
+    <div id="panel" class="sheet wide">
+      <div class="sheet-title">Add photos and shortcuts</div>
+      <div id="panel-site">
+        <p class="lead">On a phone on this Wi-Fi, open:</p>
+        <div id="panel-url" class="big"></div>
+        <div id="panel-password" class="big"></div>
+        <p id="panel-note" class="note"></p>
+        <p class="note">Upload photos, or add YouTube videos and websites. They appear here within a minute.</p>
+      </div>
+      <div id="panel-actions" class="choices"></div>
+    </div>
   </div>
 
   <script src="js/config.js"></script>
+  <script src="js/config.local.js"></script>
+  <script src="js/local-key.js"></script>
   <script src="js/wallpapers.js"></script>
+  <script src="js/ytparse.js"></script>
   <script src="js/platform.js"></script>
+  <script src="js/inputs.js"></script>
+  <script src="js/service.js"></script>
+  <script src="js/weather.js"></script>
   <script src="js/home.js"></script>
 </body>
 </html>

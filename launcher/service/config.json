@@ -1,0 +1,15 @@
+{
+  "port": 8090,
+  "packageId": "QuietHome1",
+  "dataDir": null,
+  "pbkdf2Iterations": 300000,
+  "maxPhotos": 300,
+  "maxPhotoBytes": 15728640,
+  "maxThumbBytes": 1048576,
+  "maxTotalBytes": 524288000,
+  "maxShortcuts": 60,
+  "sessionDays": 30,
+  "lockoutFailures": 5,
+  "lockoutMinutes": 5,
+  "fetchIcons": true
+}

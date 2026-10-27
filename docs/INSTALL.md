@@ -109,6 +109,13 @@ python tv.py install     # builds, installs, opens it, checks it's on screen
 python tv.py autostart   # pin it, Start with Smart Hub Home off, Autorun Last App on, power-on test
 ```
 
+Optional, before `install` (or run `install` again afterwards):
+
+```sh
+python tv.py weather "Melbourne"      # weather under the clock (pick from the list)
+python tv.py hdmi 1 "PlayStation 5"   # name an HDMI tile (per port)
+```
+
 Then turn **Developer Mode off** again (step 1, Off, restart the TV). Quiet Home
 keeps working; turn Developer Mode on only to update it (change something, then
 `python tv.py install` again).

@@ -101,5 +101,43 @@
     return next();
   };
 
+  var VIEW = 'http://tizen.org/appcontrol/operation/view';
+
+  function viewRequest(appId, uri) {
+    return new Promise(function (resolve, reject) {
+      try {
+        tz.application.launchAppControl(new tz.ApplicationControl(VIEW, uri, null, null, null), appId,
+          function () { resolve('view'); }, reject);
+      } catch (e) { reject(e); }
+    });
+  }
+
+  // A YouTube shortcut: the plain watch URL handed to the YouTube app, the form
+  // Glass Home found to work from a cold start. Opens YouTube's home if refused.
+  P.openYouTube = function (shortcut, youtubeIds) {
+    var url = window.GHYouTube ? window.GHYouTube.canonicalUrl(shortcut) : shortcut.url;
+    if (!tz) return Promise.resolve('preview ' + url);
+    if (!youtubeIds || !youtubeIds.length) return Promise.reject(new Error('YouTube is not installed'));
+    return viewRequest(youtubeIds[0], url).then(null, function () { return P.launch(youtubeIds); });
+  };
+
+  // A website shortcut, in the TV's own browser ("Internet").
+  P.openUrl = function (url) {
+    if (!tz) return Promise.resolve('preview ' + url);
+    return viewRequest('org.tizen.browser', url).then(null, function () { return viewRequest(null, url); });
+  };
+
+  // Lets the number keys reach the page (arrows, OK and Back always do).
+  P.registerKeys = function (names) {
+    if (!tz || !tz.tvinputdevice) return;
+    names.forEach(function (n) { try { tz.tvinputdevice.registerKey(n); } catch (e) { /* not on this remote */ } });
+  };
+
+  // Small settings kept on the TV (dock order, hidden tiles), in localStorage.
+  P.store = {
+    get: function (k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
+  };
+
   QH.platform = P;
 }());
