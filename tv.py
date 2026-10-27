@@ -697,6 +697,39 @@ def dns_lookup(server, name, timeout=4):
     return "ok", ips
 
 
+# Newer JavaScript an older TV engine can't parse: one use anywhere in a script
+# stops that whole script, which typically leaves a JavaScript-built site black.
+# Apps on 2020 Samsung TVs (Tizen 5.5) run a Chrome 69-era engine.
+MODERN_JS = [
+    ("optional chaining  a?.b", r"\?\.(?![0-9])", 80),
+    ("nullish coalescing  a ?? b", r"[^?]\?\?[^?=]", 80),
+    ("logical assignment  a ||= b / ??=", r"\?\?=|\|\|=|&&=", 85),
+    ("class fields  static x = / #private", r"\bstatic\s+[A-Za-z_$][\w$]*\s*=|[{;]\s*#[A-Za-z_]\w*\s*[=;]", 72),
+    ("numeric separators  1_000", r"\b\d+_\d+\b", 75),
+]
+
+
+def scan_scripts(page_url, html, ua):
+    """Downloads the page's scripts and reports the newest syntax they use: [(feature, chrome, script)]."""
+    srcs = re.findall(r"<script[^>]*\ssrc=[\"']([^\"']+)", html, re.I)
+    inline = re.findall(r"<script(?![^>]*\ssrc=)[^>]*>(.*?)</script>", html, re.I | re.S)
+    found = {}
+    sources = [("inline", "\n".join(inline))]
+    for src in srcs[:10]:
+        url = urllib.parse.urljoin(page_url, src)
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": ua}), timeout=20) as r:
+                sources.append((url.rsplit("/", 1)[-1][:40] or url, r.read(4_000_000).decode("utf-8", errors="replace")))
+        except OSError:
+            continue
+    for name, code in sources:
+        code = re.sub(r"(['\"`])(?:\\.|(?!\1).){0,200}\1", "\"\"", code)   # drop string literals
+        for feature, pattern, chrome in MODERN_JS:
+            if feature not in found and re.search(pattern, code):
+                found[feature] = (chrome, name)
+    return [(f, c, n) for f, (c, n) in sorted(found.items(), key=lambda x: -x[1][0])], len(sources) - 1
+
+
 def cmd_check_site(args):
     """Why might a site not open on the TV? DNS (normal vs the TV's filter) and what the site sends back."""
     import socket
@@ -716,6 +749,7 @@ def cmd_check_site(args):
     say(f"  TV's filter ({filter_dns}): {', '.join(filt_ips) if filt_ips else filt}"
         + ("   <- blocked by the filter" if blocked and (normal or public_ips) else ""))
     status = None
+    modern = []
     if normal or public_ips:
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 5.5) "
@@ -733,6 +767,12 @@ def cmd_check_site(args):
                 + (f", redirected to {final}" if final.rstrip('/') != url.rstrip('/') else ""))
             if re.search(r"cf-chl|challenge-platform|Just a moment", body or ""):
                 say("                             (a Cloudflare 'checking your browser' page: older TV engines often fail it)")
+            ua = req.get_header("User-agent")
+            modern, fetched = scan_scripts(final, body or "", ua) if body else ([], 0)
+            if modern:
+                say(f"  Its JavaScript ({fetched} script file{'s' if fetched != 1 else ''} checked) uses:")
+                for feature, chrome, name in modern:
+                    say(f"                             {feature:38} needs Chrome {chrome}+   ({name})")
             scripts = len(re.findall(r"<script", body or "", re.I))
             if scripts and len(re.sub(r"<script.*?</script>|<[^>]+>|\s", "", body or "", flags=re.S)) < 200:
                 say(f"                             (almost all JavaScript, {scripts} script{'s' if scripts != 1 else ''}: "
@@ -745,6 +785,13 @@ def cmd_check_site(args):
             "        (python3 tv.py restore --only dns), or choose a different filter in the DNS step.")
     elif status and status >= 400:
         say(f"Result: the site answers with an error (HTTP {status}); it may block TVs or be broken right now.")
+    elif status and modern and max(c for _, c, _ in modern) > 69:
+        newest = max(c for _, c, _ in modern)
+        say(f"Result: the site is reachable, but its code needs Chrome {newest} or newer. Apps on 2020 Samsung TVs run a\n"
+            "        Chrome 69-era engine, so the page stops before it draws anything: that is the black screen.\n"
+            "        Nothing installed on the TV can change that. What works: Samsung's browser if it is newer on your\n"
+            "        TV (try it from the FrameX start screen), mirroring your phone to the TV (Smart View / screen\n"
+            "        mirroring, which you kept on), or a streaming stick with a current browser.")
     else:
         say("Result: the site is reachable. If it's black in the FrameX TV app, the site needs a newer engine than\n"
             "        apps get on this TV: choose 'Open in Samsung's browser' on the app's start screen.")
