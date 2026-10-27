@@ -14,7 +14,6 @@ import concurrent.futures
 import ipaddress
 import json
 import os
-import shutil
 import socket
 import ssl
 import struct
@@ -277,21 +276,14 @@ class Remote:
 
 # ---- sdb (Developer Mode) ------------------------------------------------------
 
-def sdb_path():
-    found = shutil.which("sdb")
-    if found:
-        return found
-    candidate = os.path.expanduser("~/tizen-studio/tools/sdb")
-    return candidate if os.path.exists(candidate) else None
-
-
 def sdb(ip, *args, timeout=30):
     """Runs `sdb -s <tv>:26101 <args>`; returns (ok, output)."""
-    exe = sdb_path()
+    import tizen  # tools/tizen.py: finds sdb in the SDK folder on any OS
+    exe = tizen.sdb_exe()
     if not exe:
         return False, "sdb not found (install Samsung's Tizen SDK CLI; see docs/INSTALL.md)"
     target = f"{ip}:26101"
-    subprocess.run([exe, "connect", target], capture_output=True, text=True, timeout=timeout)
-    p = subprocess.run([exe, "-s", target, *args], capture_output=True, text=True, timeout=timeout)
+    subprocess.run([exe, "connect", target], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    p = subprocess.run([exe, "-s", target, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     out = (p.stdout + p.stderr).strip()
     return p.returncode == 0 and "error" not in out.lower()[:200], out

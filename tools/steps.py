@@ -138,7 +138,7 @@ STEPS = [
         "options": ["Get automatically", "Enter manually (type the address)"],
         "phase": "debloat",
         "caution": "The TV takes one DNS server. If the TV loses internet but your other devices don't, "
-                   "set DNS Setting back to Get automatically (or run ./restore.sh).",
+                   "set DNS Setting back to Get automatically (or run: python3 tv.py restore --only dns).",
     },
     {
         "id": "pin_launcher",

@@ -3,7 +3,6 @@ backups/
 state/
 photos/
 dist/
-scripts/tizen-env.sh
 launcher/.buildResult/
 __pycache__/
 node_modules/

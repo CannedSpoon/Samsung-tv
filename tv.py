@@ -7,9 +7,11 @@ Run these from a computer on the same Wi-Fi as the TV, in order:
   python3 tv.py pair            connect as a remote (choose Allow on the TV once)
   python3 tv.py backup          record every setting as it is now, with photos (changes nothing)
   python3 tv.py debloat         turn off ads, tracking and junk, one step at a time, asking first
-  python3 tv.py install         build Quiet Home, install it, check it opens (needs docs/INSTALL.md)
+  python3 tv.py install         build Quiet Home, install it, check it opens (one-time setup: docs/INSTALL.md)
   python3 tv.py autostart       pin Quiet Home and make the TV start in it
-  ./restore.sh                  undo everything above, from the backup
+  python3 tv.py restore         undo everything above, from the backup (./restore.sh does the same)
+
+On Windows type `python` instead of `python3`.
 
 Other commands:
   python3 tv.py info            model, firmware, Developer Mode status
@@ -17,7 +19,10 @@ Other commands:
   python3 tv.py key HOME RIGHT*2   press remote keys (NAME*N repeats)
   python3 tv.py snap NAME       take a photo of the TV into the current backup
   python3 tv.py status          what the latest backup has recorded and changed
-  python3 tv.py restore [--only dns]   same as ./restore.sh
+  python3 tv.py restore --only dns     just put the DNS back (if the TV lost internet)
+  python3 tv.py doctor          check this computer is ready to install Quiet Home
+  python3 tv.py cert --country GB      make the free Samsung signing certificate for this TV
+  python3 tv.py uninstall       remove Quiet Home
 
 Photos of the TV: Samsung TVs can't send screenshots over the network, so a camera
 pointed at the TV stands in. Set TV_CAMERA (see README.md) or run
@@ -36,6 +41,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "tools"))
 import samsungtv as tv  # noqa: E402
+import tizen  # noqa: E402
 from steps import NOT_HERE, STEPS  # noqa: E402
 
 BACKUPS = os.path.join(HERE, "backups")
@@ -50,13 +56,25 @@ def now():
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+# Messages name the command to type next; on Windows that's `python`, not `python3`.
+PY = "python" if os.name == "nt" else "python3"
+
+
+def local(text):
+    return str(text).replace("python3 ", PY + " ")
+
+
 def say(text=""):
-    print(text, flush=True)
+    print(local(text), flush=True)
+
+
+def die(text):
+    sys.exit(local(text))
 
 
 def ask(prompt, default=""):
     try:
-        answer = input(f"{prompt} ").strip()
+        answer = input(local(f"{prompt} ")).strip()
     except EOFError:
         answer = ""
     return answer or default
@@ -83,7 +101,7 @@ def choose(prompt, options):
 
 def load_json(path, default=None):
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError):
         return default
@@ -91,7 +109,7 @@ def load_json(path, default=None):
 
 def save_json(path, data):
     tmp = path + ".tmp"
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     os.replace(tmp, path)
 
@@ -100,7 +118,7 @@ def the_tv():
     saved = load_json(TV_FILE)
     ip = os.environ.get("TV_IP") or (saved or {}).get("ip")
     if not ip:
-        sys.exit("No TV yet. Run:  python3 tv.py find")
+        die("No TV yet. Run:  python3 tv.py find")
     return ip
 
 
@@ -118,10 +136,10 @@ class Session:
     @classmethod
     def latest(cls, required=True):
         pointer = os.path.join(BACKUPS, "LATEST")
-        name = open(pointer).read().strip() if os.path.exists(pointer) else ""
+        name = open(pointer, encoding="utf-8").read().strip() if os.path.exists(pointer) else ""
         if not name or not os.path.isdir(os.path.join(BACKUPS, name)):
             if required:
-                sys.exit("No backup yet. Run:  python3 tv.py backup")
+                die("No backup yet. Run:  python3 tv.py backup")
             return None
         return cls(os.path.join(BACKUPS, name))
 
@@ -129,7 +147,7 @@ class Session:
     def new(cls):
         name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         os.makedirs(os.path.join(BACKUPS, name))
-        with open(os.path.join(BACKUPS, "LATEST"), "w") as f:
+        with open(os.path.join(BACKUPS, "LATEST"), "w", encoding="utf-8") as f:
             f.write(name + "\n")
         return cls(os.path.join(BACKUPS, name))
 
@@ -140,11 +158,11 @@ class Session:
         save_json(self.file, self.data)
 
     def log(self, **entry):
-        with open(os.path.join(self.path, "log.jsonl"), "a") as f:
+        with open(os.path.join(self.path, "log.jsonl"), "a", encoding="utf-8") as f:
             f.write(json.dumps({"at": now(), **entry}) + "\n")
 
     def write(self, name, text):
-        with open(os.path.join(self.path, name), "w") as f:
+        with open(os.path.join(self.path, name), "w", encoding="utf-8") as f:
             f.write(text)
 
 
@@ -223,7 +241,7 @@ def already_set(step, before):
 def cmd_find(args):
     found = tv.discover(args.subnet, log=say)
     if not found:
-        sys.exit("No Samsung TV answered. Check the TV is on (not standby) and on the same network as this "
+        die("No Samsung TV answered. Check the TV is on (not standby) and on the same network as this "
                  "computer (not a guest Wi-Fi), or pass --subnet 192.168.x.0/24.")
     for i, (ip, info) in enumerate(found, 1):
         d = info["device"]
@@ -248,7 +266,7 @@ def cmd_info(args):
     ip = the_tv()
     info = tv.device_info(ip)
     if not info:
-        sys.exit(f"{ip} didn't answer as a Samsung TV. Is it on? Run  python3 tv.py find  again.")
+        die(f"{ip} didn't answer as a Samsung TV. Is it on? Run  python3 tv.py find  again.")
     d = info["device"]
     for k in ("name", "modelName", "OS", "firmwareVersion", "PowerState", "developerMode", "developerIP",
               "networkType", "ip", "wifiMac", "TokenAuthSupport"):
@@ -264,7 +282,7 @@ def cmd_pair(args):
     try:
         remote = tv.Remote(ip)
     except (OSError, RuntimeError) as e:
-        sys.exit(str(e))
+        die(str(e))
     remote.close()
     say("Paired. The TV will remember this computer.")
 
@@ -274,7 +292,7 @@ def cmd_key(args):
     try:
         remote = tv.Remote(ip, wait_for_allow=15)
     except (OSError, RuntimeError) as e:
-        sys.exit(str(e))
+        die(str(e))
     sent = []
     for spec in args.keys:
         name, _, times = spec.partition("*")
@@ -306,7 +324,7 @@ def list_apps(ip):
 def cmd_apps(args):
     source, text = list_apps(the_tv())
     if not source:
-        sys.exit("Couldn't list apps. Turn on Developer Mode and install sdb (docs/INSTALL.md); "
+        die("Couldn't list apps. Turn on Developer Mode and install sdb (docs/INSTALL.md); "
                  f"sdb said: {text}")
     if source == "sdb":
         # vd_applist prints blocks of key = value lines; keep the useful two.
@@ -330,7 +348,7 @@ def cmd_backup(args):
     ip = the_tv()
     info = tv.device_info(ip)
     if not info:
-        sys.exit(f"{ip} didn't answer. Turn the TV on, then retry.")
+        die(f"{ip} didn't answer. Turn the TV on, then retry.")
     session = Session.latest(required=False)
     if session and not args.new and not session.data.get("complete"):
         say(f"Continuing the unfinished backup in {os.path.relpath(session.path, HERE)}")
@@ -385,21 +403,21 @@ def cmd_backup(args):
     session.data["complete"] = now()
     session.save()
     say(f"\nBackup complete: {os.path.relpath(session.path, HERE)}")
-    say("Copy that folder somewhere off this computer too (it's what ./restore.sh uses).")
+    say("Copy that folder somewhere off this computer too (it's what `python3 tv.py restore` uses).")
 
 
 def run_phase(phase, args):
     ip = the_tv()
     session = Session.latest()
     if not session.data.get("complete"):
-        sys.exit("The backup isn't finished. Run  python3 tv.py backup  first.")
+        die("The backup isn't finished. Run  python3 tv.py backup  first.")
     for step in STEPS:
         if step["phase"] != phase or (args.only and step["id"] not in args.only):
             continue
         rec = session.step(step["id"])
         before = rec.get("before")
         if before is None:
-            sys.exit(f"No backed-up value for {step['id']}. Run  python3 tv.py backup --redo")
+            die(f"No backed-up value for {step['id']}. Run  python3 tv.py backup --redo")
         if rec.get("applied") and not rec.get("restored"):
             say(f"\n(done already: {step['title']})")
             continue
@@ -442,7 +460,7 @@ def cmd_debloat(args):
 def cmd_autostart(args):
     ip = the_tv()
     if tv.app_status(ip, LAUNCHER_ID) is None:
-        sys.exit("Quiet Home isn't installed yet. Run  python3 tv.py install  first.")
+        die("Quiet Home isn't installed yet. Run  python3 tv.py install  first.")
     run_phase("home", args)
     say("\nCheck: open Quiet Home, turn the TV off with the remote, wait 10 s, turn it on.")
     session = Session.latest()
@@ -457,10 +475,13 @@ def cmd_autostart(args):
 def cmd_install(args):
     ip = the_tv()
     session = Session.latest()
-    for script in ("build.sh", "install.sh"):
-        say(f"\n--- scripts/{script}")
-        if subprocess.run(["sh", os.path.join(HERE, "scripts", script)], env={**os.environ, "TV_IP": ip}).returncode:
-            sys.exit(f"scripts/{script} failed; see docs/INSTALL.md (Troubleshooting).")
+    try:
+        say("\n--- Building Quiet Home")
+        tizen.build()
+        say("\n--- Installing it on the TV")
+        tizen.install(ip)
+    except (tizen.ToolError, OSError, subprocess.SubprocessError) as e:
+        die(f"\n{e}\n\nThat step failed; see docs/INSTALL.md (Troubleshooting).")
     say("\nChecking that Quiet Home is open on the TV...")
     status = None
     for _ in range(20):
@@ -475,6 +496,66 @@ def cmd_install(args):
     session.log(install=LAUNCHER_ID, visible=ok)
     say("Quiet Home is installed and on screen. Press Left/Right on the remote and open an app to try it."
         if ok else "Installed, but the TV doesn't report it on screen. Check the photo / the TV.")
+
+
+def uninstall_launcher(ip):
+    try:
+        tizen.uninstall(ip)
+        return True
+    except (tizen.ToolError, OSError, subprocess.SubprocessError) as e:
+        say(f"Couldn't uninstall from here: {e}")
+        return False
+
+
+def cmd_uninstall(args):
+    ip = the_tv()
+    session = Session.latest()
+    if tv.app_status(ip, LAUNCHER_ID) is None:
+        say("Quiet Home isn't installed.")
+        return
+    if not uninstall_launcher(ip):
+        say("On the TV instead: Apps > App Settings (gear) > Quiet Home > Delete.")
+        ask("Press Enter when done:")
+    gone = tv.app_status(ip, LAUNCHER_ID) is None
+    snap(session, "launcher-removed")
+    session.log(uninstall=LAUNCHER_ID, gone=gone)
+    say("Quiet Home is removed." if gone else "The TV still lists Quiet Home.")
+
+
+def cmd_cert(args):
+    try:
+        tizen.make_certificate(the_tv(), args.country, new_tv=args.new_tv)
+    except (tizen.ToolError, OSError, subprocess.SubprocessError) as e:
+        die(f"\n{e}")
+
+
+def cmd_doctor(args):
+    """What this computer has for installing Quiet Home, and what's missing."""
+    checks = [
+        ("Python", sys.version.split()[0], True),
+        ("Node.js (for the certificate)", shutil.which("node"), bool(shutil.which("node"))),
+        ("Tizen SDK", tizen.tizen_home(), bool(tizen.tizen_home())),
+        ("tizen CLI", tizen.tizen_exe(), bool(tizen.tizen_exe())),
+        ("sdb", tizen.sdb_exe(), bool(tizen.sdb_exe())),
+        ("Samsung certificate tool", tizen.skills_dir(), os.path.isdir(tizen.skills_dir())),
+        ("Signing profile '" + tizen.profile() + "'", tizen.cert_dir(),
+         os.path.exists(os.path.join(tizen.cert_dir(), "distributor.p12"))),
+        ("Camera for photos (TV_CAMERA)", os.environ.get("TV_CAMERA") or "not set: you'll take photos by phone", True),
+    ]
+    saved = load_json(TV_FILE)
+    if saved:
+        info = tv.device_info(saved["ip"])
+        d = (info or {}).get("device", {})
+        checks.append(("TV", f"{saved['ip']} {saved.get('model')}" + ("" if info else " (not answering)"), bool(info)))
+        if info:
+            dev_ok = d.get("developerMode") == "1" and d.get("developerIP") == tv.local_ip()
+            checks.append(("Developer Mode, Host PC IP = this computer",
+                           f"{d.get('developerMode')} / {d.get('developerIP')} (this computer: {tv.local_ip()})", dev_ok))
+    else:
+        checks.append(("TV", "not found yet: python tv.py find", False))
+    for name, value, ok in checks:
+        say(f"  [{'ok' if ok else '--'}] {name:45} {value}")
+    say("\nFor anything marked --, see docs/INSTALL.md.")
 
 
 def restore_text(step, rec):
@@ -516,8 +597,7 @@ def cmd_restore(args):
             session.log(step=step["id"], restored=rec.get("before"))
 
     if not args.only and tv.app_status(ip, LAUNCHER_ID) is not None and yes("\nUninstall Quiet Home too?"):
-        p = subprocess.run(["sh", os.path.join(HERE, "scripts", "uninstall.sh")], env={**os.environ, "TV_IP": ip})
-        if p.returncode:
+        if not uninstall_launcher(ip):
             say("Couldn't uninstall from here. On the TV: Apps > App Settings (gear) > Quiet Home > Delete.")
             ask("Press Enter when done:")
         gone = tv.app_status(ip, LAUNCHER_ID) is None
@@ -568,6 +648,11 @@ def main():
         p = sub.add_parser(name)
         p.add_argument("--only", nargs="+", metavar="STEP", help="only these step ids (see tv.py status)")
     sub.add_parser("install")
+    sub.add_parser("uninstall")
+    sub.add_parser("doctor")
+    p = sub.add_parser("cert")
+    p.add_argument("--country", required=True, help="your 2-letter country code, e.g. GB or US")
+    p.add_argument("--new-tv", action="store_true", help="remake the distributor certificate for another TV")
     sub.add_parser("status")
     args = parser.parse_args()
     try:

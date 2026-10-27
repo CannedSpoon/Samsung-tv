@@ -10,7 +10,7 @@ Make a slow, ad-filled Samsung (Tizen) TV quiet again, with a way back:
    nothing is uninstalled.
 4. **Quiet Home**: a fast, minimal Apple TV-style home screen with a dock of
    your apps over rotating nature photos, set to start at power-on.
-5. **Restore**: `./restore.sh` puts every setting back to its backed-up value
+5. **Restore**: `python tv.py restore` puts every setting back to its backed-up value
    and can remove Quiet Home.
 
 ![Quiet Home (browser preview)](docs/screenshots/home.png)
@@ -20,18 +20,31 @@ TV Plus app. Voice assistant data upload is turned off (you said you don't use i
 
 ## Run it
 
-From a computer on the **same Wi-Fi as the TV** (macOS or Linux; Windows via
-WSL), with the TV switched on:
+From a computer on the **same Wi-Fi as the TV** (Windows, macOS or Linux, with
+[Python 3](https://www.python.org/downloads/) and Git), with the TV switched on.
+In PowerShell (Windows) or Terminal (macOS/Linux):
 
 ```sh
-python3 tv.py find        # finds the TV and remembers it
-python3 tv.py pair        # choose Allow on the TV
-python3 tv.py backup      # records everything as it is now; changes nothing
-python3 tv.py debloat     # one change at a time, each explained, each asks first
-python3 tv.py install     # Quiet Home: needs the one-time setup in docs/INSTALL.md
-python3 tv.py autostart   # pin it and make the TV start in it
-python3 tv.py status      # what's changed
-./restore.sh              # undo all of it
+git clone https://github.com/CannedSpoon/Samsung-tv
+cd Samsung-tv
+git checkout claude/android-tv-debloat-homescreen-1o5gjy
+
+python tv.py find        # finds the TV and remembers it
+python tv.py pair        # choose Allow on the TV
+python tv.py backup      # records everything as it is now; changes nothing
+python tv.py debloat     # one change at a time, each explained, each asks first
+python tv.py status      # what's changed
+python tv.py restore     # undo all of it (or restore.bat / ./restore.sh)
+```
+
+On macOS/Linux type `python3` instead of `python`.
+
+Then Quiet Home, after the one-time setup in [docs/INSTALL.md](docs/INSTALL.md)
+(Samsung's free tools and certificate; `python tv.py doctor` says what's missing):
+
+```sh
+python tv.py install     # build, install, check it's on screen
+python tv.py autostart   # pin it and make the TV start in it
 ```
 
 Everything is saved as it goes in `backups/<date>/`: `session.json` (each
@@ -40,7 +53,7 @@ setting's before/after value), `device.json`, `apps.txt`, `duid.txt`, `log.jsonl
 to continue. Copy the backup folder somewhere safe.
 
 **If the TV loses internet after the DNS step** but your other devices don't:
-`./restore.sh --only dns`, or on the TV **Settings > All Settings > Connection >
+`python tv.py restore --only dns`, or on the TV **Settings > All Settings > Connection >
 Network > Network Status > IP Settings > DNS Setting > Get automatically**.
 
 ## Why the TV settings are done by hand
@@ -63,10 +76,14 @@ with a photo of the screen instead. Any one of these works:
 
 - **A camera on this computer**, pointed at the TV (e.g. an iPhone as a
   Continuity Camera on a Mac). Set `TV_CAMERA`, and `ffmpeg` takes each photo:
-  `TV_CAMERA=avfoundation:0` (Mac), `TV_CAMERA=v4l2:/dev/video0` (Linux).
-  List Mac cameras with `ffmpeg -f avfoundation -list_devices true -i ""`.
-- **Your phone as a live camera**: `python3 tools/phonecam.py serve`, open the
+  `TV_CAMERA=avfoundation:0` (Mac), `TV_CAMERA=v4l2:/dev/video0` (Linux),
+  `$env:TV_CAMERA="dshow:video=<camera name>"` (Windows PowerShell). List
+  cameras with `ffmpeg -f avfoundation -list_devices true -i ""` (Mac) or
+  `ffmpeg -list_devices true -f dshow -i dummy` (Windows).
+- **Your phone as a live camera**: `python tools/phonecam.py serve`, open the
   printed address on the phone, aim it at the TV. Stop it (Ctrl-C) afterwards.
+  Needs `openssl` (built into macOS/Linux; on Windows it comes with Git, in
+  `C:\Program Files\Git\usr\bin`, which must be on PATH).
 - **Neither**: you're asked to take each photo yourself and can drag the file in.
 
 ## Quiet Home
